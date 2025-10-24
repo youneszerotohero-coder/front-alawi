@@ -9,24 +9,23 @@ import {
   Lock,
   User,
   GraduationCap,
-  Key,
 } from "lucide-react";
 import authService from "../../services/api/auth.service";
-import branchesService from "../../services/api/branches.service";
 import { loginSuccess } from "../../store/slices/authSlice";
+import { useToast } from "../../hooks/use-toast";
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
-    firstname: "",
-    lastname: "",
-    birth_date: "",
-    address: "",
-    school_name: "",
-    year_of_study: "1AM",
-    branch_id: "",
+    firstName: "",
+    lastName: "",
     phone: "",
     password: "",
     password_confirmation: "",
+    schoolLevel: "MIDDLE_SCHOOL", // MIDDLE_SCHOOL or HIGH_SCHOOL
+    middleSchoolGrade: "GRADE_1", // GRADE_1, GRADE_2, GRADE_3, GRADE_4
+    highSchoolGrade: null, // GRADE_1, GRADE_2, GRADE_3
+    branch: null, // For high school students
+    year_of_study: "1AM", // For UI display
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -36,74 +35,90 @@ const RegisterPage = () => {
   const [loadingBranches, setLoadingBranches] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const { toast } = useToast();
 
-  // Load branches when year changes
+  // Mapping between UI values and DB enums
+  const yearToGradeMapping = {
+    // Middle School
+    "1AM": { schoolLevel: "MIDDLE_SCHOOL", grade: "GRADE_1" },
+    "2AM": { schoolLevel: "MIDDLE_SCHOOL", grade: "GRADE_2" },
+    "3AM": { schoolLevel: "MIDDLE_SCHOOL", grade: "GRADE_3" },
+    "4AM": { schoolLevel: "MIDDLE_SCHOOL", grade: "GRADE_4" },
+    // High School
+    "1AS": { schoolLevel: "HIGH_SCHOOL", grade: "GRADE_1" },
+    "2AS": { schoolLevel: "HIGH_SCHOOL", grade: "GRADE_2" },
+    "3AS": { schoolLevel: "HIGH_SCHOOL", grade: "GRADE_3" },
+  };
+
+  // Branches available for each high school grade
+  const branchOptions = {
+    GRADE_1: [
+      { value: "SCIENTIFIC", label: "علمي" },
+      { value: "LITERARY", label: "أدبي" },
+    ],
+    GRADE_2: [
+      { value: "LANGUAGES", label: "لغات أجنبية" },
+      { value: "PHILOSOPHY", label: "فلسفة وآداب" },
+      { value: "ELECTRICAL", label: "تقني رياضي - كهرباء" },
+      { value: "MECHANICAL", label: "تقني رياضي - ميكانيك" },
+      { value: "CIVIL", label: "تقني رياضي - مدني" },
+      { value: "INDUSTRIAL", label: "تقني رياضي - صناعة" },
+      { value: "MATHEMATIC", label: "رياضيات" },
+      { value: "GESTION", label: "تسيير واقتصاد" },
+    ],
+    GRADE_3: [
+      { value: "LANGUAGES", label: "لغات أجنبية" },
+      { value: "PHILOSOPHY", label: "فلسفة وآداب" },
+      { value: "ELECTRICAL", label: "تقني رياضي - كهرباء" },
+      { value: "MECHANICAL", label: "تقني رياضي - ميكانيك" },
+      { value: "CIVIL", label: "تقني رياضي - مدني" },
+      { value: "INDUSTRIAL", label: "تقني رياضي - صناعة" },
+      { value: "MATHEMATIC", label: "رياضيات" },
+      { value: "GESTION", label: "تسيير واقتصاد" },
+    ],
+  };
+
+  // Update available branches when high school grade changes
   useEffect(() => {
-    const loadBranches = async () => {
-      if (
-        formData.year_of_study &&
-        ["1AS", "2AS", "3AS"].includes(formData.year_of_study)
-      ) {
-        setLoadingBranches(true);
-        try {
-          const response = await branchesService.getBranchesForYear(
-            formData.year_of_study,
-          );
-          setAvailableBranches(response.data || []);
-        } catch (error) {
-          console.error("Error loading branches:", error);
-          setAvailableBranches([]);
-        } finally {
-          setLoadingBranches(false);
+    if (formData.highSchoolGrade && branchOptions[formData.highSchoolGrade]) {
+      setAvailableBranches(branchOptions[formData.highSchoolGrade]);
+      // Reset branch if it's not available for the new grade
+      if (formData.branch) {
+        const isBranchAvailable = branchOptions[formData.highSchoolGrade].some(
+          (b) => b.value === formData.branch
+        );
+        if (!isBranchAvailable) {
+          setFormData((prev) => ({ ...prev, branch: "" }));
         }
-      } else {
-        setAvailableBranches([]);
-        setFormData((prev) => ({ ...prev, branch_id: "" }));
       }
-    };
-
-    loadBranches();
-  }, [formData.year_of_study]);
+    } else {
+      setAvailableBranches([]);
+      setFormData((prev) => ({ ...prev, branch: "" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.highSchoolGrade, formData.branch]);
 
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.firstname.trim()) {
+    // Check both old and new field names for compatibility
+    const firstName = formData.firstName || formData.firstname || "";
+    const lastName = formData.lastName || formData.lastname || "";
+    
+    if (!firstName.trim()) {
+      newErrors.firstName = "الاسم الأول مطلوب";
       newErrors.firstname = "الاسم الأول مطلوب";
     }
 
-    if (!formData.lastname.trim()) {
+    if (!lastName.trim()) {
+      newErrors.lastName = "الاسم الأخير مطلوب";
       newErrors.lastname = "الاسم الأخير مطلوب";
-    }
-
-    if (!formData.birth_date) {
-      newErrors.birth_date = "تاريخ الميلاد مطلوب";
-    }
-
-    if (!formData.address.trim()) {
-      newErrors.address = "العنوان مطلوب";
-    }
-
-    if (!formData.school_name.trim()) {
-      newErrors.school_name = "اسم المدرسة مطلوب";
-    }
-
-    if (!formData.year_of_study) {
-      newErrors.year_of_study = "السنة الدراسية مطلوبة";
-    }
-
-    // Validate branch for high school students
-    if (
-      ["1AS", "2AS", "3AS"].includes(formData.year_of_study) &&
-      !formData.branch_id
-    ) {
-      newErrors.branch_id = "الفرع مطلوب للطلاب الثانويين";
     }
 
     if (!formData.phone?.trim()) {
       newErrors.phone = "رقم الهاتف مطلوب";
-    } else if (!/^[0-9]{10}$/.test(formData.phone)) {
-      newErrors.phone = "رقم الهاتف يجب أن يتكون من 10 أرقام";
+    } else if (!/^[0-9]{6,15}$/.test(formData.phone)) {
+      newErrors.phone = "رقم الهاتف غير صحيح";
     }
 
     if (!formData.password) {
@@ -116,50 +131,71 @@ const RegisterPage = () => {
       newErrors.password_confirmation = "كلمات المرور غير متطابقة";
     }
 
+    if (Object.keys(newErrors).length > 0) {
+      console.log("Validation errors found:", newErrors);
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    console.log("Form submitted! Current form data:", formData);
 
-    if (!validateForm()) {
+    const isValid = validateForm();
+    
+    if (!isValid) {
+      console.log("Validation failed!");
+      // Errors will be shown in the UI via state
       return;
     }
+    
+    console.log("Validation passed, proceeding with registration...");
 
     setIsLoading(true);
 
     try {
+      // Use both old and new field names for compatibility
+      const firstName = formData.firstName || formData.firstname || "";
+      const lastName = formData.lastName || formData.lastname || "";
+      
       const userData = {
-        firstname: formData.firstname.trim(),
-        lastname: formData.lastname.trim(),
-        birth_date: formData.birth_date,
-        address: formData.address.trim(),
-        school_name: formData.school_name.trim(),
-        year_of_study: formData.year_of_study,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         phone: formData.phone,
         password: formData.password,
-        password_confirmation: formData.password_confirmation,
+        middleSchoolGrade: formData.middleSchoolGrade || null,
+        highSchoolGrade: formData.highSchoolGrade || null,
+        branch: formData.branch || null,
       };
 
-      // Add branch_id only for high school students
-      if (
-        ["1AS", "2AS", "3AS"].includes(formData.year_of_study) &&
-        formData.branch_id
-      ) {
-        userData.branch_id = formData.branch_id;
-      }
+      console.log("Sending registration data:", userData);
 
       const response = await authService.register(userData);
 
-      const { token, user } = response;
+      console.log("Registration response:", response);
 
-      if (token && user) {
-        // Update Redux store
-        dispatch(loginSuccess({ token, user }));
+      const { user } = response;
 
-        // Redirection en fonction du rôle
-        navigate("/student/profile");
+      if (user) {
+        // Update Redux store (token is in httpOnly cookie)
+        dispatch(loginSuccess({ user }));
+
+        // Show success message
+        toast({
+          title: "تم إنشاء الحساب بنجاح",
+          description: `مرحباً بك!`,
+        });
+
+        // Navigate based on user role (registration typically creates students)
+        const userRole = user.role?.toLowerCase();
+        if (userRole === "admin") {
+          navigate("/admin", { replace: true });
+        } else {
+          navigate("/student/profile", { replace: true });
+        }
       }
     } catch (error) {
       console.error("Registration error details:", {
@@ -195,10 +231,36 @@ const RegisterPage = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+    
+    // Handle year_of_study changes specially
+    if (name === "year_of_study") {
+      const mapping = yearToGradeMapping[value];
+      if (mapping) {
+        setFormData({
+          ...formData,
+          year_of_study: value,
+          schoolLevel: mapping.schoolLevel,
+          middleSchoolGrade: mapping.schoolLevel === "MIDDLE_SCHOOL" ? mapping.grade : null,
+          highSchoolGrade: mapping.schoolLevel === "HIGH_SCHOOL" ? mapping.grade : null,
+          // Reset branch when changing year (will be updated by useEffect)
+          branch: "",
+        });
+      }
+    } else {
+      // Map old field names to new ones for backward compatibility
+      const fieldMap = {
+        'firstname': 'firstName',
+        'lastname': 'lastName',
+        'branch_id': 'branch',
+      };
+      
+      const mappedName = fieldMap[name] || name;
+      
+      setFormData({
+        ...formData,
+        [mappedName]: value,
+      });
+    }
 
     // Clear error when user starts typing
     if (errors[name]) {
@@ -261,7 +323,7 @@ const RegisterPage = () => {
                         errors.firstname ? "border-red-500" : "border-gray-300"
                       }`}
                       placeholder="الاسم الأول"
-                      value={formData.firstname || ""}
+                      value={formData.firstName || formData.firstname || ""}
                       onChange={handleChange}
                     />
                   </div>
@@ -292,7 +354,7 @@ const RegisterPage = () => {
                         errors.lastname ? "border-red-500" : "border-gray-300"
                       }`}
                       placeholder="الاسم الأخير"
-                      value={formData.lastname || ""}
+                      value={formData.lastName || formData.lastname || ""}
                       onChange={handleChange}
                     />
                   </div>
@@ -443,7 +505,7 @@ const RegisterPage = () => {
               {["1AS", "2AS", "3AS"].includes(formData.year_of_study) && (
                 <div>
                   <label
-                    htmlFor="branch_id"
+                    htmlFor="branch"
                     className="block text-sm font-medium text-gray-700 mb-2 text-right"
                   >
                     الفرع الدراسي
@@ -453,13 +515,13 @@ const RegisterPage = () => {
                       <BookOpen className="h-5 w-5 text-gray-400" />
                     </div>
                     <select
-                      id="branch_id"
-                      name="branch_id"
+                      id="branch"
+                      name="branch"
                       required
                       className={`block w-full pr-10 pl-3 py-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-right text-gray-900 transition-all duration-200 ${
-                        errors.branch_id ? "border-red-500" : "border-gray-300"
+                        errors.branch ? "border-red-500" : "border-gray-300"
                       }`}
-                      value={formData.branch_id}
+                      value={formData.branch || ""}
                       onChange={handleChange}
                       disabled={loadingBranches}
                     >
@@ -469,15 +531,15 @@ const RegisterPage = () => {
                           : "اختر الفرع الدراسي"}
                       </option>
                       {availableBranches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name}
+                        <option key={branch.value} value={branch.value}>
+                          {branch.label}
                         </option>
                       ))}
                     </select>
                   </div>
-                  {errors.branch_id && (
+                  {errors.branch && (
                     <p className="mt-1 text-sm text-red-600 text-right">
-                      {errors.branch_id}
+                      {errors.branch}
                     </p>
                   )}
                 </div>

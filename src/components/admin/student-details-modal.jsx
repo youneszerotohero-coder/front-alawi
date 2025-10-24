@@ -9,28 +9,18 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   User,
   Phone,
   Calendar,
   GraduationCap,
   MapPin,
   Trash2,
-  CheckCircle,
   XCircle,
 } from "lucide-react";
 import studentsService from "../../services/api/students.service";
 import { useState } from "react";
 
 export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
-  const [showReasonDialog, setShowReasonDialog] = useState(false);
-  const [selectedReason, setSelectedReason] = useState("");
   const formatDate = (dateString) => {
     if (!dateString) return "غير محدد";
     try {
@@ -41,25 +31,28 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
   };
 
   const toggleFreeSubscriber = async () => {
-    if (!student.free_subscriber) {
-      // Si on active l'abonnement gratuit, demander la raison
-      setShowReasonDialog(true);
-    } else {
-      // Si on désactive l'abonnement gratuit, confirmation avec détails
-      const currentReason = student.free_subscriber_reason
-        ? `\n\nالسبب الحالي: ${student.free_subscriber_reason}`
-        : "";
-
-      if (
-        confirm(
-          `هل أنت متأكد من إلغاء الاشتراك المجاني لهذا الطالب؟${currentReason}\n\n⚠️ سيتم حذف سبب الاشتراك المجاني نهائياً`,
-        )
-      ) {
+    if (!student.hasFreeSubscription) {
+      // Si on active l'abonnement gratuit, confirmation simple
+      if (confirm("هل أنت متأكد من تفعيل الاشتراك المجاني لهذا الطالب؟")) {
         try {
-          const result = await studentsService.toggleFreeSubscriber(
-            student.uuid,
-          );
-          alert(`✅ تم بنجاح\n\n${result.message}`);
+          const result = await studentsService.updateStudent(student.id, {
+            hasFreeSubscription: true
+          });
+          alert(`✅ تم بنجاح\n\nتم تفعيل الاشتراك المجاني`);
+          onUpdate && onUpdate();
+        } catch (error) {
+          console.error("Error toggling free subscriber:", error);
+          alert("❌ خطأ\n\nفشل في تحديث حالة الاشتراك المجاني");
+        }
+      }
+    } else {
+      // Si on désactive l'abonnement gratuit, confirmation simple
+      if (confirm("هل أنت متأكد من إلغاء الاشتراك المجاني لهذا الطالب؟")) {
+        try {
+          const result = await studentsService.updateStudent(student.id, {
+            hasFreeSubscription: false
+          });
+          alert(`✅ تم بنجاح\n\nتم إلغاء الاشتراك المجاني`);
           onUpdate && onUpdate();
         } catch (error) {
           console.error("Error toggling free subscriber:", error);
@@ -69,30 +62,6 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
     }
   };
 
-  const confirmFreeSubscriber = async () => {
-    if (!selectedReason) {
-      alert("يرجى اختيار سبب الاشتراك المجاني");
-      return;
-    }
-
-    try {
-      const result = await studentsService.toggleFreeSubscriber(
-        student.uuid,
-        selectedReason,
-      );
-      setShowReasonDialog(false);
-      setSelectedReason("");
-
-      // Message de succès détaillé
-      alert(
-        `✅ تم تفعيل الاشتراك المجاني بنجاح\n\n${result.message}\n\n📋 السبب المُسجل: ${selectedReason}`,
-      );
-      onUpdate && onUpdate();
-    } catch (error) {
-      console.error("Error toggling free subscriber:", error);
-      alert("❌ خطأ\n\nفشل في تحديث حالة الاشتراك المجاني");
-    }
-  };
 
   const handleDeleteStudent = async () => {
     // Confirmation avec détails
@@ -101,7 +70,7 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
 
 هل أنت متأكد من حذف هذا الطالب؟
 
-الطالب: ${student.firstname} ${student.lastname}
+الطالب: ${student.firstName} ${student.lastName}
 الهاتف: ${student.phone}
 
 ⚠️ تحذير: هذا الإجراء لا يمكن التراجع عنه
@@ -110,14 +79,14 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
 
     if (confirm(confirmMessage)) {
       try {
-        const result = await studentsService.deleteStudent(student.uuid);
+        const result = await studentsService.deleteStudent(student.id);
 
         // Message de succès مخصص
         const successDiv = document.createElement("div");
         successDiv.innerHTML = `
           <div style="background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 16px; color: #15803d; text-align: right;">
             <h3 style="margin: 0 0 8px 0; font-weight: bold;">✅ تم الحذف بنجاح</h3>
-            <p style="margin: 0;">تم حذف الطالب ${student.firstname} ${student.lastname} من قاعدة البيانات</p>
+            <p style="margin: 0;">تم حذف الطالب ${student.firstName} ${student.lastName} من قاعدة البيانات</p>
           </div>
         `;
         alert(result.message || "تم حذف الطالب بنجاح");
@@ -140,16 +109,6 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
     }
   };
 
-  const reasonOptions = [
-    "طالب متفوق",
-    "ظروف مالية صعبة",
-    "أخ/أخت مسجل في المدرسة",
-    "عرض ترويجي",
-    "طالب منحة",
-    "تعويض عن مشكلة تقنية",
-    "قرار إداري خاص",
-    "أخرى",
-  ];
 
   if (!student) return null;
 
@@ -162,7 +121,7 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-right">
             <User className="h-5 w-5" />
-            {student.firstname} {student.lastname}
+            {student.firstName} {student.lastName}
           </DialogTitle>
           <DialogDescription className="text-right">
             تفاصيل الطالب الشاملة
@@ -183,22 +142,15 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
             </Button>
             <Button
               onClick={toggleFreeSubscriber}
-              variant={student.free_subscriber ? "secondary" : "default"}
+              variant={student.hasFreeSubscription ? "secondary" : "default"}
               size="sm"
               className="flex items-center gap-2"
-              title={
-                student.free_subscriber && student.free_subscriber_reason
-                  ? `السبب الحالي: ${student.free_subscriber_reason}`
-                  : undefined
-              }
             >
-              {student.free_subscriber ? (
+              {student.hasFreeSubscription && (
                 <XCircle className="h-4 w-4" />
-              ) : (
-                <CheckCircle className="h-4 w-4" />
               )}
-              {student.free_subscriber
-                ? `إلغاء الاشتراك المجاني ${student.free_subscriber_reason ? "(مُفعل)" : ""}`
+              {student.hasFreeSubscription
+                ? "إلغاء الاشتراك المجاني"
                 : "تفعيل الاشتراك المجاني"}
             </Button>
           </div>
@@ -220,12 +172,12 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
                       <img
                         src={
                           student.picture ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(student.firstname || "")}+${encodeURIComponent(student.lastname || "")}&background=0D8ABC&color=fff&size=200`
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(student.firstName || "")}+${encodeURIComponent(student.lastName || "")}&background=0D8ABC&color=fff&size=200`
                         }
-                        alt={student.firstname + " " + student.lastname}
+                        alt={student.firstName + " " + student.lastName}
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(student.firstname || "")}+${encodeURIComponent(student.lastname || "")}&background=0D8ABC&color=fff&size=200`;
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(student.firstName || "")}+${encodeURIComponent(student.lastName || "")}&background=0D8ABC&color=fff&size=200`;
                         }}
                       />
                     </div>
@@ -236,19 +188,19 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
                     <label className="text-sm font-medium text-muted-foreground">
                       الاسم الأول
                     </label>
-                    <p className="text-sm">{student.firstname || "غير محدد"}</p>
+                    <p className="text-sm">{student.firstName || "غير محدد"}</p>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-muted-foreground">
                       اسم العائلة
                     </label>
-                    <p className="text-sm">{student.lastname || "غير محدد"}</p>
+                    <p className="text-sm">{student.lastName || "غير محدد"}</p>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-muted-foreground">
                       تاريخ الميلاد
                     </label>
-                    <p className="text-sm">{formatDate(student.birth_date)}</p>
+                    <p className="text-sm">{formatDate(student.birthDate)}</p>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-muted-foreground">
@@ -288,7 +240,7 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
                     السنة الدراسية
                   </label>
                   <p className="text-sm">
-                    {student.year_of_study || "غير محدد"}
+                    {student.middleSchoolGrade || student.highSchoolGrade || "غير محدد"}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -296,7 +248,7 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
                     الفرع الدراسي
                   </label>
                   <p className="text-sm">
-                    {student.branch?.name || "غير محدد"}
+                    {student.branch || "غير محدد"}
                   </p>
                 </div>
               </div>
@@ -307,7 +259,6 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-right">
-                <CheckCircle className="h-5 w-5" />
                 حالة الاشتراك
               </CardTitle>
             </CardHeader>
@@ -321,30 +272,18 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
                     <div className="flex items-center gap-2">
                       <Badge
                         variant={
-                          student.free_subscriber ? "default" : "secondary"
+                          student.hasFreeSubscription ? "default" : "secondary"
                         }
                         className="text-sm"
                       >
-                        {student.free_subscriber ? "✅ نشط" : "❌ غير نشط"}
+                        {student.hasFreeSubscription ? "✅ نشط" : "❌ غير نشط"}
                       </Badge>
                     </div>
                   </div>
                 </div>
 
-                {student.free_subscriber && student.free_subscriber_reason && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-green-800">
-                        سبب منح الاشتراك المجاني:
-                      </label>
-                      <p className="text-sm text-green-700 bg-green-100 px-3 py-2 rounded-md">
-                        📋 {student.free_subscriber_reason}
-                      </p>
-                    </div>
-                  </div>
-                )}
 
-                {!student.free_subscriber && (
+                {!student.hasFreeSubscription && (
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                     <p className="text-sm text-gray-600">
                       💡 يمكنك تفعيل الاشتراك المجاني لهذا الطالب باستخدام الزر
@@ -416,13 +355,13 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
                   <label className="text-sm font-medium text-muted-foreground">
                     تاريخ التسجيل
                   </label>
-                  <p className="text-sm">{formatDate(student.created_at)}</p>
+                  <p className="text-sm">{formatDate(student.createdAt)}</p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-muted-foreground">
                     آخر تحديث
                   </label>
-                  <p className="text-sm">{formatDate(student.updated_at)}</p>
+                  <p className="text-sm">{formatDate(student.updatedAt)}</p>
                 </div>
               </div>
             </CardContent>
@@ -430,61 +369,6 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
         </div>
       </DialogContent>
 
-      {/* Dialog pour choisir la raison de l'abonnement gratuit */}
-      <Dialog open={showReasonDialog} onOpenChange={setShowReasonDialog}>
-        <DialogContent className="max-w-md" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="text-right">
-              تفعيل الاشتراك المجاني
-            </DialogTitle>
-            <DialogDescription className="text-right">
-              يرجى اختيار سبب منح الاشتراك المجاني للطالب {student.firstname}{" "}
-              {student.lastname}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-right block">
-                سبب الاشتراك المجاني
-              </label>
-              <Select value={selectedReason} onValueChange={setSelectedReason}>
-                <SelectTrigger className="text-right">
-                  <SelectValue placeholder="اختر السبب..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {reasonOptions.map((reason, index) => (
-                    <SelectItem
-                      key={index}
-                      value={reason}
-                      className="text-right"
-                    >
-                      {reason}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowReasonDialog(false);
-                  setSelectedReason("");
-                }}
-              >
-                إلغاء
-              </Button>
-              <Button
-                onClick={confirmFreeSubscriber}
-                className="flex items-center gap-2"
-              >
-                <CheckCircle className="h-4 w-4" />
-                تأكيد التفعيل
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </Dialog>
   );
 }

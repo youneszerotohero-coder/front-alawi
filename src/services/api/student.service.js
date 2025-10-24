@@ -1,19 +1,13 @@
 import api from "./axios.config";
 
-const STUDENT_ENDPOINTS = {
-  INFO: "/admin/checkin/student",
-  SESSIONS: "/admin/checkin/student",
-};
-
 export const studentService = {
   /**
-   * Get student information by UUID (for QR scanner input)
+   * Get student information by ID
    */
   async getStudentById(studentId) {
     try {
-      const response = await api.get(
-        `${STUDENT_ENDPOINTS.INFO}/${studentId}/info`,
-      );
+      const response = await api.get(`/students/${studentId}`);
+      // Express backend returns { success: true, data: {...} }
       return response.data;
     } catch (error) {
       console.error("Error fetching student by ID:", error);
@@ -22,13 +16,13 @@ export const studentService = {
   },
 
   /**
-   * Get student with today's sessions and subscription status
+   * Get student with sessions (for check-in purposes)
    */
   async getStudentWithSessions(studentId) {
     try {
-      const response = await api.get(
-        `${STUDENT_ENDPOINTS.SESSIONS}/${studentId}/sessions`,
-      );
+      const response = await api.get(`/students/${studentId}`);
+      // Express backend returns { success: true, data: {...} }
+      // The backend includes attendances and payments in the student data
       return response.data;
     } catch (error) {
       console.error("Error fetching student with sessions:", error);

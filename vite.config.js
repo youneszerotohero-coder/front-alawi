@@ -20,5 +20,13 @@ export default defineConfig({
       host: 'localhost',
       protocol: 'ws',
     },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+        // Don't rewrite the path, keep /api as is
+      },
+    },
   },
 })

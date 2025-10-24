@@ -18,6 +18,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -118,6 +125,34 @@ export function SessionsTable({ filters = {} }) {
     setStatusDialogAction(action);
     setCancelReason("");
     setStatusDialogOpen(true);
+  };
+
+  const handleStatusChange = async (sessionId, newStatus) => {
+    try {
+      await sessionService.updateSession(sessionId, { status: newStatus });
+      
+      // ⚡ Invalidate cache after status update
+      cacheService.invalidateSessions();
+      invalidateDashboardCache();
+      console.log("🔄 Session status updated - Cache invalidated");
+      
+      toast({
+        title: "تم تحديث الحالة",
+        description: `تم تحديث حالة الجلسة إلى ${newStatus === "COMPLETED" ? "مكتملة" : newStatus === "CANCELLED" ? "ملغية" : "مجدولة"}.`,
+      });
+
+      await fetchSessions();
+    } catch (error) {
+      const description =
+        error?.response?.data?.message ||
+        error.message ||
+        "تعذر تحديث حالة الجلسة";
+      toast({
+        title: "فشل تحديث الحالة",
+        description,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleStatusSubmit = async () => {
@@ -309,10 +344,10 @@ export function SessionsTable({ filters = {} }) {
           <TableHeader>
             <TableRow>
               <TableHead className="text-right">المعلم</TableHead>
-              <TableHead className="text-right">المادة</TableHead>
+              <TableHead className="text-right">نوع الجلسة</TableHead>
               <TableHead className="text-right">السنة المستهدفة</TableHead>
               <TableHead className="text-right">الفرع</TableHead>
-              <TableHead className="text-right">التاريخ</TableHead>
+              <TableHead className="text-right">التاريخ/الأيام</TableHead>
               <TableHead className="text-right">الوقت</TableHead>
               <TableHead className="text-right">المدة</TableHead>
               <TableHead className="text-right">الحالة</TableHead>
@@ -329,63 +364,75 @@ export function SessionsTable({ filters = {} }) {
               return (
                 <TableRow key={session.id}>
                   <TableCell className="font-medium text-right">
-                    {session.teacher_name || "غير محدد"}
+                    {session.teacher?.firstName && session.teacher?.lastName
+                      ? `${session.teacher.firstName} ${session.teacher.lastName}`
+                      : session.teacher_name || "غير محدد"}
                   </TableCell>
                   <TableCell className="text-right">
-                    {session.module || "غير محدد"}
+                    <Badge variant={session.sessionType === "ONE_TIME" ? "default" : "secondary"}>
+                      {session.sessionType === "ONE_TIME" ? "مرة واحدة" : "متكررة"}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    {getYearTargetInArabic(session.year_target)}
+                    {session.middleSchoolGrade 
+                      ? `${session.middleSchoolGrade} متوسط`
+                      : session.highSchoolGrade 
+                        ? `${session.highSchoolGrade} ثانوي` 
+                        : getYearTargetInArabic(session.year_target)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {Array.isArray(session.branches) &&
-                    session.branches.length > 0
-                      ? session.branches.map((branch) => branch.name).join("، ")
-                      : session.branch?.name || "غير محدد"}
+                    {session.branch || "غير محدد"}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatDate(session.date || session.start_time)}
+                    {session.sessionType === "ONE_TIME" 
+                      ? formatDate(session.dateTime) 
+                      : session.repeatDays && session.repeatDays.length > 0
+                        ? session.repeatDays.map(day => {
+                            const dayMap = {
+                              'MONDAY': 'الإثنين',
+                              'TUESDAY': 'الثلاثاء',
+                              'WEDNESDAY': 'الأربعاء',
+                              'THURSDAY': 'الخميس',
+                              'FRIDAY': 'الجمعة',
+                              'SATURDAY': 'السبت',
+                              'SUNDAY': 'الأحد'
+                            };
+                            return dayMap[day] || day;
+                          }).join(', ')
+                        : "غير محدد"}
                   </TableCell>
                   <TableCell className="text-right">
-                    {session.start_time
-                      ? formatTime(session.start_time)
-                      : "غير محدد"}
+                    {session.sessionType === "ONE_TIME"
+                      ? session.dateTime ? formatTime(session.dateTime) : "غير محدد"
+                      : session.startTime || "غير محدد"}
                   </TableCell>
                   <TableCell className="text-right">
-                    {session.duration || "غير محدد"}
+                    {session.duration ? `${session.duration} دقيقة` : "غير محدد"}
                   </TableCell>
                   <TableCell className="text-right">
-                    {isPending ? (
-                      <div className="flex items-center gap-2 justify-end">
-                        <Button
-                          size="sm"
-                          onClick={() => openStatusDialog(session, "complete")}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          <CheckCircle2 className="ml-1 h-3 w-3" />
-                          تأكيد
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openStatusDialog(session, "cancel")}
-                        >
-                          <Ban className="ml-1 h-3 w-3" />
-                          إلغاء
-                        </Button>
-                      </div>
-                    ) : isCancelled ? (
-                      <div className="text-right">
-                        <Badge variant="destructive">ملغية</Badge>
-                        {session.cancel_reason && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            السبب: {session.cancel_reason}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <Badge variant="default">مكتملة</Badge>
-                    )}
+                    <Select
+                      value={session.status || "SCHEDULED"}
+                      onValueChange={(value) => handleStatusChange(session.id, value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue>
+                          {session.status === "COMPLETED" && (
+                            <Badge variant="default">مكتملة</Badge>
+                          )}
+                          {session.status === "CANCELLED" && (
+                            <Badge variant="destructive">ملغية</Badge>
+                          )}
+                          {session.status === "SCHEDULED" && (
+                            <Badge variant="secondary">مجدولة</Badge>
+                          )}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="SCHEDULED">مجدولة</SelectItem>
+                        <SelectItem value="COMPLETED">مكتملة</SelectItem>
+                        <SelectItem value="CANCELLED">ملغية</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">

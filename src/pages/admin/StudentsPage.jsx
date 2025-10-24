@@ -12,6 +12,7 @@ import {
 
 export default function AdminStudentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handleSearchChange = (query) => {
     setSearchQuery(query);
@@ -19,6 +20,10 @@ export default function AdminStudentsPage() {
 
   const handleClearFilters = () => {
     setSearchQuery("");
+  };
+
+  const handleStudentAdded = () => {
+    setRefreshTrigger(prev => prev + 1);
   };
 
   return (
@@ -39,14 +44,14 @@ export default function AdminStudentsPage() {
               البحث والتصفية للطلاب حسب معايير مختلفة
             </CardDescription>
           </div>
-          <AddStudentModal />
+          <AddStudentModal onStudentAdded={handleStudentAdded} />
         </CardHeader>
         <CardContent>
           <StudentsFilters
             onSearchChange={handleSearchChange}
             onClearFilters={handleClearFilters}
           />
-          <StudentsTable searchQuery={searchQuery} />
+          <StudentsTable searchQuery={searchQuery} key={refreshTrigger} />
         </CardContent>
       </Card>
     </div>

@@ -6,12 +6,13 @@ import { loginSuccess, logout } from "../store/slices/authSlice";
 
 /**
  * PrivateRoute
- * - Vérifie authentification via Redux ou localStorage (token)
+ * - Vérifie authentification via Redux ou localStorage (user)
  * - Charge le profil backend si user manquant (synchronisation uuid/role)
  * - Applique un filtrage par rôle si allowedRoles fourni
+ * - Token is stored in httpOnly cookie, not localStorage
  */
 const PrivateRoute = ({ children, allowedRoles = [] }) => {
-  const { isAuthenticated, user, token } = useSelector((state) => state.auth);
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const location = useLocation();
   const [checking, setChecking] = useState(true);
@@ -21,16 +22,16 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
     let isMounted = true;
     const syncAuth = async () => {
       try {
-        const storedToken = token || localStorage.getItem("token");
         const storedUserStr = localStorage.getItem("user");
 
         console.log("🔍 PrivateRoute - syncAuth check:", {
-          hasToken: !!storedToken,
           hasReduxUser: !!user,
           hasStoredUser: !!storedUserStr,
+          isAuthenticated,
         });
 
-        if (!storedToken) {
+        // If no user in localStorage, we're not authenticated
+        if (!storedUserStr) {
           if (isMounted) setChecking(false);
           return;
         }
@@ -44,7 +45,7 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
               console.log(
                 "✅ Using cached user from localStorage in PrivateRoute",
               );
-              dispatch(loginSuccess({ token: storedToken, user: cachedUser }));
+              dispatch(loginSuccess({ user: cachedUser }));
               if (isMounted) setChecking(false);
               return; // Don't fetch profile if we have cached user
             } catch (parseError) {
@@ -60,7 +61,7 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
             console.log("📡 Fetching profile from API...");
             const profile = await authService.getProfile();
             if (profile && isMounted) {
-              dispatch(loginSuccess({ token: storedToken, user: profile }));
+              dispatch(loginSuccess({ user: profile }));
             }
           } catch (e) {
             console.warn("Profile fetch failed in PrivateRoute:", e);
@@ -83,7 +84,6 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
               // Clear all auth data
               const device = localStorage.getItem("device_uuid");
               dispatch(logout());
-              localStorage.removeItem("token");
               localStorage.removeItem("user");
               if (device) localStorage.setItem("device_uuid", device);
             } else if (e.response?.status === 400 && isMounted) {
@@ -96,7 +96,6 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
                 );
                 const device = localStorage.getItem("device_uuid");
                 dispatch(logout());
-                localStorage.removeItem("token");
                 localStorage.removeItem("user");
                 if (device) localStorage.setItem("device_uuid", device);
               } else {
@@ -105,7 +104,7 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
                 if (cachedUser) {
                   try {
                     const user = JSON.parse(cachedUser);
-                    dispatch(loginSuccess({ token: storedToken, user }));
+                    dispatch(loginSuccess({ user }));
                     console.log(
                       "Using cached user from localStorage due to profile fetch error",
                     );
@@ -118,7 +117,6 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
               // Device conflict as per middleware; preserve device UUID and force relogin
               const device = localStorage.getItem("device_uuid");
               dispatch(logout());
-              localStorage.removeItem("token");
               localStorage.removeItem("user");
               if (device) localStorage.setItem("device_uuid", device);
             } else if (isMounted) {
@@ -127,7 +125,7 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
               if (cachedUser) {
                 try {
                   const user = JSON.parse(cachedUser);
-                  dispatch(loginSuccess({ token: storedToken, user }));
+                  dispatch(loginSuccess({ user }));
                   console.log(
                     "Using cached user from localStorage due to profile fetch error",
                   );
@@ -146,7 +144,7 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
     return () => {
       isMounted = false;
     };
-  }, [user, token, dispatch]);
+  }, [user, isAuthenticated, dispatch]);
 
   // Pendant vérification, on peut afficher un loader minimal
   if (checking) {
@@ -166,9 +164,9 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
         return null;
       }
     })();
-  const hasToken = !!(token || localStorage.getItem("token"));
 
-  if (!hasToken) {
+  // Check if user exists (token is in httpOnly cookie)
+  if (!effectiveUser) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

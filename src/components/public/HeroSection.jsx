@@ -8,11 +8,10 @@ const HeroSection = () => {
   const handleDiscoverClick = (e) => {
     e.preventDefault();
 
-    // Check if user is logged in
-    const token = localStorage.getItem("token");
+    // Check if user is logged in (token is in httpOnly cookie)
     const user = localStorage.getItem("user");
 
-    if (token && user) {
+    if (user) {
       // User is logged in, go to chapters
       navigate("/student/chapters");
     } else {

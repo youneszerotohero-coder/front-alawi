@@ -223,7 +223,6 @@ const Testimonials = () => {
           <p className="text-white/90 text-sm md:text-lg max-w-2xl mx-auto px-4 mb-8">
             اراء و نتائج الطلاب الذين قاموا بدراسة الدروس الخاصة بي
           </p>
-
           {/* Video Player */}
           <div className="max-w-4xl mx-auto mb-12 px-6">
             <div

@@ -9,21 +9,20 @@ function App() {
 
   useEffect(() => {
     // Restore auth state from localStorage on app load
-    const token = localStorage.getItem("token");
+    // Token is in httpOnly cookie, we only need to restore user data
     const userStr = localStorage.getItem("user");
     const deviceUuid = localStorage.getItem("device_uuid");
 
     console.log("🔍 App.jsx - Checking localStorage:", {
-      hasToken: !!token,
       hasUser: !!userStr,
       deviceUuid: deviceUuid,
     });
 
-    if (token && userStr) {
+    if (userStr) {
       try {
         const user = JSON.parse(userStr);
-        // Restore Redux state from localStorage
-        dispatch(loginSuccess({ token, user }));
+        // Restore Redux state from localStorage (token is in cookie)
+        dispatch(loginSuccess({ user }));
         console.log("✅ Auth state restored from localStorage", {
           user,
           deviceUuid,
@@ -31,7 +30,6 @@ function App() {
       } catch (error) {
         console.error("❌ Failed to restore auth state:", error);
         // Clear invalid data
-        localStorage.removeItem("token");
         localStorage.removeItem("user");
       }
     }

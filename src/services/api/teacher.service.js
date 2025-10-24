@@ -11,21 +11,29 @@ export const teacherService = {
       if (useCache) {
         return await cacheService.getTeachers(async () => {
           const response = await axiosInstance.get("/teachers");
-          return response.data;
+          // Express backend returns { success: true, data: [...], pagination: {...} }
+          return {
+            data: response.data.data,
+            pagination: response.data.pagination,
+          };
         });
       }
       const response = await axiosInstance.get("/teachers", { params });
-      return response.data;
+      return {
+        data: response.data.data,
+        pagination: response.data.pagination,
+      };
     } catch (error) {
       console.error("Erreur lors de la récupération des professeurs:", error);
       throw error;
     }
   },
 
-  // Récupérer un professeur par UUID
-  async getTeacher(uuid) {
+  // Récupérer un professeur par ID
+  async getTeacher(id) {
     try {
-      const response = await axiosInstance.get(`/teachers/${uuid}`);
+      const response = await axiosInstance.get(`/teachers/${id}`);
+      // Express backend returns { success: true, data: {...} }
       return response.data;
     } catch (error) {
       console.error("Erreur lors de la récupération du professeur:", error);
@@ -37,6 +45,7 @@ export const teacherService = {
   async createTeacher(teacherData) {
     try {
       const response = await axiosInstance.post("/teachers", teacherData);
+      // Express backend returns { success: true, data: {...} }
       return response.data;
     } catch (error) {
       console.error("Erreur lors de la création du professeur:", error);
@@ -45,12 +54,13 @@ export const teacherService = {
   },
 
   // Mettre à jour un professeur
-  async updateTeacher(uuid, teacherData) {
+  async updateTeacher(id, teacherData) {
     try {
-      const response = await axiosInstance.put(
-        `/teachers/${uuid}`,
+      const response = await axiosInstance.patch(
+        `/teachers/${id}`,
         teacherData,
       );
+      // Express backend returns { success: true, data: {...} }
       return response.data;
     } catch (error) {
       console.error("Erreur lors de la mise à jour du professeur:", error);
@@ -59,9 +69,10 @@ export const teacherService = {
   },
 
   // Supprimer un professeur
-  async deleteTeacher(uuid) {
+  async deleteTeacher(id) {
     try {
-      const response = await axiosInstance.delete(`/teachers/${uuid}`);
+      const response = await axiosInstance.delete(`/teachers/${id}`);
+      // Express backend returns { success: true, message: "..." }
       return response.data;
     } catch (error) {
       console.error("Erreur lors de la suppression du professeur:", error);
@@ -70,10 +81,10 @@ export const teacherService = {
   },
 
   // Récupérer le nombre d'étudiants abonnés à un professeur
-  async getTeacherStudentsCount(teacherUuid) {
+  async getTeacherStudentsCount(teacherId) {
     try {
       const response = await axiosInstance.get(
-        `/teachers/${teacherUuid}/students-count`,
+        `/teachers/${teacherId}/students-count`,
       );
       return response.data;
     } catch (error) {

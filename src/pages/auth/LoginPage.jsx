@@ -50,25 +50,26 @@ const LoginPage = () => {
         formData.password,
       );
 
-      if (response.token && response.user) {
-        // Update Redux store
-        dispatch(loginSuccess({ token: response.token, user: response.user }));
+      if (response.user) {
+        // Update Redux store (token is in httpOnly cookie, not in response)
+        dispatch(loginSuccess({ user: response.user }));
 
         // Show success message
         toast({
           title: "تم تسجيل الدخول بنجاح",
-          description: `مرحباً ${response.user.firstname || response.user.name || "بك"}!`,
+          description: `مرحباً بك!`,
         });
 
         // Navigate based on user role
-        if (response.user.role === "admin") {
-          navigate("/admin");
+        const userRole = response.user.role?.toLowerCase();
+        if (userRole === "admin") {
+          navigate("/admin", { replace: true });
         } else {
-          navigate("/student/profile");
+          navigate("/student/profile", { replace: true });
         }
       } else {
-        console.error("No token received in response:", response);
-        throw new Error("لم يتم استلام رمز المصادقة");
+        console.error("No user received in response:", response);
+        throw new Error("فشل تسجيل الدخول");
       }
     } catch (error) {
       console.error("Login error:", error);

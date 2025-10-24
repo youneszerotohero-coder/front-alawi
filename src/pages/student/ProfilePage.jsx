@@ -144,13 +144,8 @@ const StudentProfilePage = () => {
       return;
     }
 
-    const token = localStorage.getItem("token");
+    // Token is in httpOnly cookie and will be sent automatically
     const deviceUuid = localStorage.getItem("device_uuid");
-
-    if (!token) {
-      console.warn("⚠️ No token available for subscriptions fetch");
-      return;
-    }
 
     if (!deviceUuid) {
       console.warn("⚠️ No device UUID available for subscriptions fetch");
@@ -159,8 +154,7 @@ const StudentProfilePage = () => {
 
     console.debug("🚀 Fetching subscriptions for user:", currentUser.uuid);
 
-    // Debug: vérifier le token et device UUID
-    console.debug("🔑 Token:", token ? token.substring(0, 20) + "..." : "NONE");
+    // Debug: vérifier device UUID (token is in httpOnly cookie)
     console.debug("📱 Device UUID:", deviceUuid || "NONE");
 
     setSubsLoading(true);

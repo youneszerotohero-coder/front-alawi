@@ -16,11 +16,11 @@ import {
   Edit,
   Trash2,
   Phone,
-  Users,
   BookOpen,
   DollarSign,
   Calendar,
   RefreshCcw,
+  Clock,
 } from "lucide-react";
 import { teachersService } from "@/services/teachersService";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -105,22 +105,29 @@ export function TeachersTable() {
       setLoading(true);
       const response = await teachersService.getTeachers({
         page,
-        per_page: meta.per_page || 12,
+        limit: meta.per_page || 12,
         search: debouncedSearch, // 🔧 Use debounced value
-        year: yearFilter,
-        module: moduleFilter,
+        // Note: year and module filters not supported by Express backend yet
       });
       const list = response.data || [];
-      setMeta(response.meta || meta);
-      setFiltersMeta(response.filters || filtersMeta);
+      
+      // Express backend returns { data: [...], pagination: { page, limit, total, totalPages } }
+      const expressMetaToLaravelMeta = {
+        current_page: response.pagination?.page || page,
+        last_page: response.pagination?.totalPages || 1,
+        per_page: response.pagination?.limit || 12,
+        total: response.pagination?.total || 0,
+      };
+      setMeta(expressMetaToLaravelMeta);
+      
       // Always fetch fresh studentsCount from backend to avoid stale cache
       const enriched = await Promise.all(
         list.map(async (t) => {
           try {
-            const cRes = await teachersService.getTeacherStudentsCount(t.uuid);
+            const cRes = await teachersService.getTeacherStudentsCount(t.id);
             const count = cRes.count || 0;
             // Optionally update cache if you want to keep it for future
-            studentsCountCache.current[t.uuid] = count;
+            studentsCountCache.current[t.id] = count;
             persistCache();
             return { ...t, studentsCount: count };
           } catch {
@@ -147,9 +154,9 @@ export function TeachersTable() {
       const updated = await Promise.all(
         teachers.map(async (t) => {
           try {
-            const cRes = await teachersService.getTeacherStudentsCount(t.uuid);
+            const cRes = await teachersService.getTeacherStudentsCount(t.id);
             const newCount = cRes.count || 0;
-            studentsCountCache.current[t.uuid] = newCount;
+            studentsCountCache.current[t.id] = newCount;
             return { ...t, studentsCount: newCount };
           } catch {
             return { ...t, studentsCount: 0 };
@@ -166,11 +173,11 @@ export function TeachersTable() {
     }
   };
 
-  const handleDeleteTeacher = async (uuid) => {
+  const handleDeleteTeacher = async (id) => {
     if (!window.confirm("هل أنت متأكد من حذف هذا الأستاذ؟")) return;
-    setDeleting(uuid);
+    setDeleting(id);
     try {
-      await teachersService.deleteTeacher(uuid);
+      await teachersService.deleteTeacher(id);
       
       // ⚡ Invalidate cache after teacher deletion
       cacheService.invalidateTeachers();
@@ -222,28 +229,11 @@ export function TeachersTable() {
   return (
     <div className="space-y-6" dir="rtl">
       <div className="flex flex-col gap-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-900">قائمة الأساتذة</h2>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-sm px-3 py-1">
-              إجمالي: {meta.total}
-            </Badge>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={refreshCounts}
-              disabled={refreshingCounts}
-            >
-              <RefreshCcw className="w-4 h-4 ml-1" />{" "}
-              {refreshingCounts ? "تحديث..." : "تحديث الأعداد"}
-            </Button>
-          </div>
-        </div>
         {/* Filters */}
         <div className="grid gap-4 md:grid-cols-4 bg-white/70 p-4 rounded-lg border border-indigo-100">
           <div className="space-y-1 md:col-span-2">
             <label className="text-xs font-medium text-gray-600">
-              بحث (الاسم / الهاتف / المادة)
+              بحث
             </label>
             <Input
               placeholder="اكتب هنا للبحث..."
@@ -254,30 +244,6 @@ export function TeachersTable() {
               }}
               className="text-right"
             />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">
-              السنة الدراسية
-            </label>
-            <Select
-              value={yearFilter || "ALL"}
-              onValueChange={(val) => {
-                setYearFilter(val === "ALL" ? "" : val);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="الكل" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">الكل</SelectItem>
-                {filtersMeta.years?.map((y) => (
-                  <SelectItem key={y.value} value={y.value}>
-                    {y.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-gray-600">المادة</label>
@@ -302,30 +268,6 @@ export function TeachersTable() {
             </Select>
           </div>
         </div>
-        {/* Pagination top */}
-        <div className="flex items-center justify-between text-xs text-gray-600">
-          <div>
-            صفحة {meta.current_page} من {meta.last_page}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              السابق
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= meta.last_page}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              التالي
-            </Button>
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -334,19 +276,59 @@ export function TeachersTable() {
         {!loading &&
           teachers.map((teacher) => (
             <Card
-              key={teacher.uuid}
-              className="hover:shadow-lg transition-all duration-300 border-0 shadow-md bg-gradient-to-br from-white via-blue-50 to-indigo-50 cursor-pointer"
+              key={teacher.id}
+              className="hover:shadow-xl transition-all duration-300 border-0 shadow-lg cursor-pointer group bg-white"
               onClick={() => setSelectedTeacherForDetails(teacher)}
             >
               <CardHeader className="pb-3">
+                {/* Header with Avatar and Actions */}
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base font-bold text-gray-900 mb-1">
-                      {teacher.name}
-                    </CardTitle>
+                  <div className="flex items-center gap-3">
+                    {/* Teacher Avatar */}
+                    <div className="relative">
+                      <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
+                        {teacher.firstName?.charAt(0) || "?"}
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                      </div>
+                    </div>
+                    
+                    {/* Teacher Name */}
+                    <div>
+                      <CardTitle className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                        {teacher.firstName} {teacher.lastName}
+                      </CardTitle>
+                    </div>
                   </div>
+                </div>
+              </CardHeader>
 
-                  <div className="flex gap-1">
+              <CardContent className="space-y-3">
+                {/* Teacher Info */}
+                <div className="space-y-2">
+                  {teacher.module && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600 bg-purple-50 rounded-lg p-2">
+                      <BookOpen className="h-4 w-4 text-purple-500" />
+                      <span className="font-medium">
+                        {teacher.module_label || teacher.module}
+                      </span>
+                    </div>
+                  )}
+                  {teacher.phone && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600 bg-blue-50 rounded-lg p-2">
+                      <Phone className="h-4 w-4 text-blue-500" />
+                      <span className="font-medium">{teacher.phone}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Last Activity */}
+                <div className="w-full flex justify-center items-center gap-2 text-xs text-gray-500 pt-2 border-t border-gray-100">
+                  <Clock className="h-3 w-3" />
+                  <span>آخر نشاط: اليوم</span>
+                                    {/* Action Buttons */}
+                  <div className="flex gap-1 mr-auto">
                     <Button
                       variant="outline"
                       size="sm"
@@ -354,103 +336,23 @@ export function TeachersTable() {
                         e.stopPropagation();
                         setSelectedTeacher(teacher);
                       }}
-                      className="flex items-center gap-1 h-8 px-2"
+                      className="flex items-center gap-1 h-7 px-2 text-xs hover:bg-blue-50"
                     >
                       <Edit className="w-3 h-3" /> تعديل
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={deleting === teacher.uuid}
+                      disabled={deleting === teacher.id}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteTeacher(teacher.uuid);
+                        handleDeleteTeacher(teacher.id);
                       }}
-                      className="flex items-center gap-1 h-8 px-2 text-red-600"
+                      className="flex items-center gap-1 h-7 px-2 text-xs text-red-600 hover:bg-red-50"
                     >
                       <Trash2 className="w-3 h-3" /> حذف
                     </Button>
                   </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-3">
-                {/* Basic Info - Compact */}
-                <div className="space-y-1">
-                  {teacher.module && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <BookOpen className="h-3 w-3 text-purple-500" />
-                      <span className="text-xs">
-                        {teacher.module_label || teacher.module}
-                      </span>
-                    </div>
-                  )}
-                  {teacher.phone && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Phone className="h-3 w-3 text-blue-500" />
-                      <span className="text-xs">{teacher.phone}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Key Stats - Compact */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-white rounded-lg p-2 border border-blue-200">
-                    <div className="flex items-center gap-1">
-                      <Users className="h-3 w-3 text-blue-500" />
-                      <div>
-                        <p className="text-xs text-gray-500">الطلاب النشطين</p>
-                        <p className="font-bold text-gray-900 text-sm">
-                          {teacher.studentsCount}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {teacher.percent_school && (
-                    <div className="bg-white rounded-lg p-2 border border-green-200">
-                      <div className="flex items-center gap-1">
-                        <DollarSign className="h-3 w-3 text-green-500" />
-                        <div>
-                          <p className="text-xs text-gray-500">نسبة المدرسة</p>
-                          <p className="font-bold text-gray-900 text-sm">
-                            {teacher.percent_school}%
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Pricing - Compact */}
-                {(teacher.price_subscription || teacher.price_session) && (
-                  <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-2 border border-amber-200">
-                    <div className="flex justify-between text-xs">
-                      {teacher.price_subscription && (
-                        <span className="text-gray-600">
-                          اشتراك:{" "}
-                          <span className="font-bold text-green-600">
-                            {teacher.price_subscription} دج
-                          </span>
-                        </span>
-                      )}
-                      {teacher.price_session && (
-                        <span className="text-gray-600">
-                          حصة:{" "}
-                          <span className="font-bold text-blue-600">
-                            {teacher.price_session} دج
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Click hint */}
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">
-                    انقر لعرض التفاصيل والإيرادات
-                  </p>
                 </div>
               </CardContent>
             </Card>

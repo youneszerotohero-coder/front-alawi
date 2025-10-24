@@ -4,8 +4,12 @@ const studentsService = {
   // Get all students with filters and pagination
   async getStudents(params = {}) {
     try {
-      const response = await api.get("/users", { params });
-      return response.data;
+      const response = await api.get("/students", { params });
+      // Express backend returns { success: true, data: [...], pagination: {...} }
+      return {
+        data: response.data.data,
+        pagination: response.data.pagination,
+      };
     } catch (error) {
       console.error("Error fetching students:", error);
       throw error;
@@ -15,18 +19,20 @@ const studentsService = {
   // Get student statistics for dashboard
   async getStudentStats() {
     try {
-      const response = await api.get("/users/stats");
+      const response = await api.get("/students/stats");
       return response.data;
     } catch (error) {
       console.error("Error fetching student stats:", error);
-      throw error;
+      // Return mock data if endpoint doesn't exist yet
+      return { data: { total: 0, active: 0 } };
     }
   },
 
   // Get specific student details
-  async getStudent(uuid) {
+  async getStudent(id) {
     try {
-      const response = await api.get(`/users/${uuid}`);
+      const response = await api.get(`/students/${id}`);
+      // Express backend returns { success: true, data: {...} }
       return response.data;
     } catch (error) {
       console.error("Error fetching student:", error);
@@ -37,7 +43,8 @@ const studentsService = {
   // Create new student
   async createStudent(studentData) {
     try {
-      const response = await api.post("/users", studentData);
+      const response = await api.post("/students", studentData);
+      // Express backend returns { success: true, data: {...} }
       return response.data;
     } catch (error) {
       console.error("Error creating student:", error);
@@ -46,9 +53,10 @@ const studentsService = {
   },
 
   // Update student
-  async updateStudent(uuid, studentData) {
+  async updateStudent(id, studentData) {
     try {
-      const response = await api.put(`/users/${uuid}`, studentData);
+      const response = await api.patch(`/students/${id}`, studentData);
+      // Express backend returns { success: true, data: {...} }
       return response.data;
     } catch (error) {
       console.error("Error updating student:", error);
@@ -57,9 +65,10 @@ const studentsService = {
   },
 
   // Delete student
-  async deleteStudent(uuid) {
+  async deleteStudent(id) {
     try {
-      const response = await api.delete(`/users/${uuid}`);
+      const response = await api.delete(`/students/${id}`);
+      // Express backend returns { success: true, message: "..." }
       return response.data;
     } catch (error) {
       console.error("Error deleting student:", error);
@@ -67,14 +76,23 @@ const studentsService = {
     }
   },
 
-  // Toggle free subscriber status
-  async toggleFreeSubscriber(uuid, reason = null) {
+  // Update student
+  async updateStudent(id, studentData) {
     try {
-      const data = reason ? { reason } : {};
-      const response = await api.post(
-        `/users/${uuid}/toggle-free-subscriber`,
-        data,
-      );
+      const response = await api.patch(`/students/${id}`, studentData);
+      return response.data;
+    } catch (error) {
+      console.error("Error updating student:", error);
+      throw error;
+    }
+  },
+
+  // Toggle free subscriber status
+  async toggleFreeSubscriber(id, hasFreeSubscription) {
+    try {
+      const response = await api.patch(`/students/${id}`, {
+        hasFreeSubscription,
+      });
       return response.data;
     } catch (error) {
       console.error("Error toggling free subscriber:", error);

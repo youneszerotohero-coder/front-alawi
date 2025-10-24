@@ -36,11 +36,14 @@ export function AddSessionModal({ onSessionAdded }) {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     teacher: "",
+    sessionType: "ONE_TIME",
     year_target: "1AM",
     branch_ids: [],
     date: "",
     time: "",
     duration: "",
+    repeatDays: [],
+    startTime: "",
   });
   const [availableBranches, setAvailableBranches] = useState([]);
   const [loadingBranches, setLoadingBranches] = useState(false);
@@ -55,11 +58,14 @@ export function AddSessionModal({ onSessionAdded }) {
     if (!open) {
       setFormData({
         teacher: "",
+        sessionType: "ONE_TIME",
         year_target: "1AM",
         branch_ids: [],
         date: "",
         time: "",
         duration: "",
+        repeatDays: [],
+        startTime: "",
       });
       setAvailableBranches([]);
       setLoadingBranches(false);
@@ -68,37 +74,44 @@ export function AddSessionModal({ onSessionAdded }) {
 
   // Load branches when year changes
   useEffect(() => {
-    const loadBranches = async () => {
+    const loadBranches = () => {
       if (
         formData.year_target &&
         HIGH_SCHOOL_YEARS.includes(formData.year_target)
       ) {
         setLoadingBranches(true);
-        try {
-          // Use cache for branches - they rarely change
-          const allBranches = await cacheService.getBranches(async () => {
-            const response = await branchesService.getAllBranches();
-            return response.data || [];
-          });
-
-          // Filter branches for the selected year
-          const branches = allBranches.filter(
-            (branch) => branch.year_level === formData.year_target,
-          );
-
-          setAvailableBranches(branches);
-          setFormData((prev) => {
-            const validSelection = prev.branch_ids.filter((id) =>
-              branches.some((branch) => branch.id.toString() === id),
-            );
-            return { ...prev, branch_ids: validSelection };
-          });
-        } catch (error) {
-          console.error("Error loading branches:", error);
-          setAvailableBranches([]);
-        } finally {
-          setLoadingBranches(false);
+        
+        // Define branches based on year level (from schema)
+        let branches = [];
+        
+        if (formData.year_target === "1AS") {
+          // 1st year High School
+          branches = [
+            { id: "SCIENTIFIC", name: "علمي", code: "SCI" },
+            { id: "LITERARY", name: "أدبي", code: "LIT" },
+          ];
+        } else if (formData.year_target === "2AS" || formData.year_target === "3AS") {
+          // 2nd and 3rd year High School
+          branches = [
+            { id: "LANGUAGES", name: "لغات أجنبية", code: "LANG" },
+            { id: "PHILOSOPHY", name: "فلسفة", code: "PHIL" },
+            { id: "ELECTRICAL", name: "كهرباء", code: "ELEC" },
+            { id: "MECHANICAL", name: "ميكانيك", code: "MECH" },
+            { id: "CIVIL", name: "مدني", code: "CIV" },
+            { id: "INDUSTRIAL", name: "صناعي", code: "IND" },
+            { id: "MATHEMATIC", name: "رياضيات", code: "MATH" },
+            { id: "GESTION", name: "تسيير واقتصاد", code: "GEST" },
+          ];
         }
+
+        setAvailableBranches(branches);
+        setFormData((prev) => {
+          const validSelection = prev.branch_ids.filter((id) =>
+            branches.some((branch) => branch.id === id),
+          );
+          return { ...prev, branch_ids: validSelection };
+        });
+        setLoadingBranches(false);
       } else {
         setAvailableBranches([]);
         setFormData((prev) => ({ ...prev, branch_ids: [] }));
@@ -147,6 +160,16 @@ export function AddSessionModal({ onSessionAdded }) {
       return;
     }
 
+    // Validate repetitive session fields
+    if (formData.sessionType === "REPETITIVE" && formData.repeatDays.length === 0) {
+      toast({
+        title: "برجاء اختيار أيام التكرار",
+        description: "يجب اختيار يوم واحد على الأقل للجلسات المتكررة.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -160,20 +183,29 @@ export function AddSessionModal({ onSessionAdded }) {
       console.log("🔄 Session created - Cache invalidated");
 
       // Show success message
-      const selectedTeacher = teachers.find((t) => t.uuid === formData.teacher);
+      const selectedTeacher = teachers.find((t) => t.id === formData.teacher);
+      const teacherName = selectedTeacher 
+        ? `${selectedTeacher.firstName} ${selectedTeacher.lastName}` 
+        : "المعلم";
+      const dateText = formData.sessionType === "ONE_TIME" 
+        ? `في ${formData.date}` 
+        : "كجلسة متكررة";
       toast({
         title: "تم إضافة الجلسة بنجاح",
-        description: `تم جدولة جلسة جديدة مع ${selectedTeacher?.name || "المعلم"} في ${formData.date}`,
+        description: `تم جدولة جلسة جديدة مع ${teacherName} ${dateText}`,
       });
 
       setOpen(false);
       setFormData({
         teacher: "",
+        sessionType: "ONE_TIME",
         year_target: "1AM",
         branch_ids: [],
         date: "",
         time: "",
         duration: "",
+        repeatDays: [],
+        startTime: "",
       });
       setAvailableBranches([]);
 
@@ -213,6 +245,26 @@ export function AddSessionModal({ onSessionAdded }) {
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="sessionType" className="text-right">
+                نوع الجلسة
+              </Label>
+              <Select
+                value={formData.sessionType}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, sessionType: value })
+                }
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="اختر نوع الجلسة" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ONE_TIME">جلسة لمرة واحدة</SelectItem>
+                  <SelectItem value="REPETITIVE">جلسة متكررة</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="teacher" className="text-right">
                 المعلم
               </Label>
@@ -227,8 +279,8 @@ export function AddSessionModal({ onSessionAdded }) {
                 </SelectTrigger>
                 <SelectContent>
                   {teachers.map((teacher) => (
-                    <SelectItem key={teacher.uuid} value={teacher.uuid}>
-                      {teacher.name}
+                    <SelectItem key={teacher.id} value={teacher.id}>
+                      {teacher.firstName} {teacher.lastName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -280,7 +332,7 @@ export function AddSessionModal({ onSessionAdded }) {
                   {!loadingBranches && availableBranches.length > 0 && (
                     <div className="space-y-2">
                       {availableBranches.map((branch) => {
-                        const branchId = branch.id.toString();
+                        const branchId = branch.id;
                         const checkboxId = `branch-${branch.id}`;
                         const checked = formData.branch_ids.includes(branchId);
 
@@ -319,37 +371,106 @@ export function AddSessionModal({ onSessionAdded }) {
               </div>
             )}
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="date" className="text-right">
-                التاريخ
-              </Label>
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) =>
-                  setFormData({ ...formData, date: e.target.value })
-                }
-                className="col-span-3"
-                required
-              />
-            </div>
+            {/* ONE_TIME session fields */}
+            {formData.sessionType === "ONE_TIME" && (
+              <>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="date" className="text-right">
+                    التاريخ
+                  </Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) =>
+                      setFormData({ ...formData, date: e.target.value })
+                    }
+                    className="col-span-3"
+                    required
+                  />
+                </div>
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="time" className="text-right">
-                الوقت
-              </Label>
-              <Input
-                id="time"
-                type="time"
-                value={formData.time}
-                onChange={(e) =>
-                  setFormData({ ...formData, time: e.target.value })
-                }
-                className="col-span-3"
-                required
-              />
-            </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="time" className="text-right">
+                    الوقت
+                  </Label>
+                  <Input
+                    id="time"
+                    type="time"
+                    value={formData.time}
+                    onChange={(e) =>
+                      setFormData({ ...formData, time: e.target.value })
+                    }
+                    className="col-span-3"
+                    required
+                  />
+                </div>
+              </>
+            )}
+
+            {/* REPETITIVE session fields */}
+            {formData.sessionType === "REPETITIVE" && (
+              <>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right mt-2">أيام التكرار</Label>
+                  <div className="col-span-3 grid grid-cols-2 gap-2">
+                    {[
+                      { value: "MONDAY", label: "الإثنين" },
+                      { value: "TUESDAY", label: "الثلاثاء" },
+                      { value: "WEDNESDAY", label: "الأربعاء" },
+                      { value: "THURSDAY", label: "الخميس" },
+                      { value: "FRIDAY", label: "الجمعة" },
+                      { value: "SATURDAY", label: "السبت" },
+                      { value: "SUNDAY", label: "الأحد" },
+                    ].map((day) => (
+                      <div
+                        key={day.value}
+                        className="flex items-center gap-2 p-2 border rounded"
+                      >
+                        <Checkbox
+                          id={day.value}
+                          checked={formData.repeatDays.includes(day.value)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setFormData({
+                                ...formData,
+                                repeatDays: [...formData.repeatDays, day.value],
+                              });
+                            } else {
+                              setFormData({
+                                ...formData,
+                                repeatDays: formData.repeatDays.filter(
+                                  (d) => d !== day.value
+                                ),
+                              });
+                            }
+                          }}
+                        />
+                        <Label htmlFor={day.value} className="cursor-pointer">
+                          {day.label}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="startTime" className="text-right">
+                    وقت البدء
+                  </Label>
+                  <Input
+                    id="startTime"
+                    type="time"
+                    value={formData.startTime}
+                    onChange={(e) =>
+                      setFormData({ ...formData, startTime: e.target.value })
+                    }
+                    className="col-span-3"
+                    required
+                  />
+                </div>
+              </>
+            )}
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="duration" className="text-right">

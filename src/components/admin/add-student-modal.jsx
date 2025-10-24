@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { UserPlus } from "lucide-react";
 import studentsService from "../../services/api/students.service";
-import branchesService from "../../services/api/branches.service";
+import authService from "../../services/api/auth.service";
 import { useToast } from "../../hooks/use-toast";
 import { cacheService } from "@/services/cache.service";
 import { invalidateDashboardCache } from "@/hooks/useDashboardData"; // ⚡ Invalidate dashboard
@@ -30,14 +30,14 @@ export function AddStudentModal({ onStudentAdded }) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const [formData, setFormData] = useState({
-    firstname: "",
-    lastname: "",
+    firstName: "",
+    lastName: "",
     phone: "",
     birth_date: "",
     address: "",
     school_name: "",
     year_of_study: "",
-    branch_id: "",
+    branch: "",
     password: "00000000",
   });
   const [availableBranches, setAvailableBranches] = useState([]);
@@ -45,34 +45,43 @@ export function AddStudentModal({ onStudentAdded }) {
 
   // Load branches when year changes
   useEffect(() => {
-    const loadBranches = async () => {
+    const loadBranches = () => {
       if (
         formData.year_of_study &&
-        ["1AS", "2AS", "3AS"].includes(formData.year_of_study)
+        ["GRADE_1_HIGH", "GRADE_2_HIGH", "GRADE_3_HIGH"].includes(formData.year_of_study)
       ) {
-        setLoadingBranches(true);
-        try {
-          // Use cache for branches - they rarely change
-          const allBranches = await cacheService.getBranches(async () => {
-            const response = await branchesService.getAllBranches();
-            return response.data || [];
-          });
+        // Define branches based on year level
+        const branchOptions = {
+          "GRADE_1_HIGH": [
+            { value: "SCIENTIFIC", label: "علمي" },
+            { value: "LITERARY", label: "أدبي" }
+          ],
+          "GRADE_2_HIGH": [
+            { value: "LANGUAGES", label: "آداب ولغات" },
+            { value: "PHILOSOPHY", label: "فلسفة" },
+            { value: "ELECTRICAL", label: "كهرباء" },
+            { value: "MECHANICAL", label: "ميكانيك" },
+            { value: "CIVIL", label: "مدني" },
+            { value: "INDUSTRIAL", label: "صناعي" },
+            { value: "MATHEMATIC", label: "رياضيات" },
+            { value: "GESTION", label: "تسيير" }
+          ],
+          "GRADE_3_HIGH": [
+            { value: "LANGUAGES", label: "آداب ولغات" },
+            { value: "PHILOSOPHY", label: "فلسفة" },
+            { value: "ELECTRICAL", label: "كهرباء" },
+            { value: "MECHANICAL", label: "ميكانيك" },
+            { value: "CIVIL", label: "مدني" },
+            { value: "INDUSTRIAL", label: "صناعي" },
+            { value: "MATHEMATIC", label: "رياضيات" },
+            { value: "GESTION", label: "تسيير" }
+          ]
+        };
 
-          // Filter branches for the selected year
-          const branches = allBranches.filter(
-            (branch) => branch.year_level === formData.year_of_study,
-          );
-
-          setAvailableBranches(branches);
-        } catch (error) {
-          console.error("Error loading branches:", error);
-          setAvailableBranches([]);
-        } finally {
-          setLoadingBranches(false);
-        }
+        setAvailableBranches(branchOptions[formData.year_of_study] || []);
       } else {
         setAvailableBranches([]);
-        setFormData((prev) => ({ ...prev, branch_id: "" }));
+        setFormData((prev) => ({ ...prev, branch: "" }));
       }
     };
 
@@ -80,56 +89,85 @@ export function AddStudentModal({ onStudentAdded }) {
   }, [formData.year_of_study]);
 
   const yearOptions = [
-    { value: "1AM", label: "السنة الأولى متوسط" },
-    { value: "2AM", label: "السنة الثانية متوسط" },
-    { value: "3AM", label: "السنة الثالثة متوسط" },
-    { value: "4AM", label: "السنة الرابعة متوسط" },
-    { value: "1AS", label: "السنة الأولى ثانوي" },
-    { value: "2AS", label: "السنة الثانية ثانوي" },
-    { value: "3AS", label: "السنة الثالثة ثانوي" },
+    { value: "GRADE_1_MIDDLE", label: "السنة الأولى متوسط" },
+    { value: "GRADE_2_MIDDLE", label: "السنة الثانية متوسط" },
+    { value: "GRADE_3_MIDDLE", label: "السنة الثالثة متوسط" },
+    { value: "GRADE_4_MIDDLE", label: "السنة الرابعة متوسط" },
+    { value: "GRADE_1_HIGH", label: "السنة الأولى ثانوي" },
+    { value: "GRADE_2_HIGH", label: "السنة الثانية ثانوي" },
+    { value: "GRADE_3_HIGH", label: "السنة الثالثة ثانوي" },
   ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    try {
-      // Prepare data according to user model
-      const userData = {
-        firstname: formData.firstname,
-        lastname: formData.lastname,
-        phone: formData.phone,
-        birth_date: formData.birth_date,
-        address: formData.address,
-        school_name: formData.school_name,
-        year_of_study: formData.year_of_study,
-        branch_id: formData.branch_id || null,
-        password: "00000000", // Default password
-        role: "student",
-      };
+        try {
+          // Process grade and branch data first
+          let middleSchoolGrade = null;
+          let highSchoolGrade = null;
+          let branch = null;
 
-      await studentsService.createStudent(userData);
+          if (formData.year_of_study.startsWith('GRADE_') && formData.year_of_study.includes('MIDDLE')) {
+            middleSchoolGrade = formData.year_of_study.replace('_MIDDLE', '');
+          }
+          
+          if (formData.year_of_study.startsWith('GRADE_') && formData.year_of_study.includes('HIGH')) {
+            highSchoolGrade = formData.year_of_study.replace('_HIGH', '');
+          }
+          
+          if (formData.branch) {
+            branch = formData.branch;
+          }
 
-      // ⚡ Invalidate cache after creating student
-      cacheService.invalidateStudents();
-      invalidateDashboardCache();
-      console.log("🔄 Student created - Cache invalidated");
+          let userId;
+          
+          try {
+            // First try to create a user using the auth service with processed data
+            const userResponse = await authService.register({
+              phone: formData.phone,
+              password: formData.password,
+              firstName: formData.firstName,
+              lastName: formData.lastName,
+              middleSchoolGrade: middleSchoolGrade,
+              highSchoolGrade: highSchoolGrade,
+              branch: branch,
+            });
+            userId = userResponse.user.id;
+          } catch (error) {
+            // If user already exists (409), we need to check if they have a student record
+            if (error.response?.status === 409) {
+              // For now, show a clear error message asking to use a different phone number
+              throw new Error("رقم الهاتف مستخدم من قبل. يرجى استخدام رقم هاتف آخر أو البحث عن الطالب الموجود في قائمة الطلاب لتحديث بياناته.");
+            } else {
+              throw error;
+            }
+          }
+
+          // The student record should already be created by the auth controller
+          console.log('User and student created successfully with ID:', userId);
+
+          // ⚡ Invalidate cache after creating student
+          cacheService.invalidateStudents();
+          invalidateDashboardCache();
+          console.log("🔄 Student created - Cache invalidated");
 
       // Show success message
       toast({
         title: "تم إضافة الطالب بنجاح",
-        description: `تم إنشاء حساب للطالب ${userData.firstname} ${userData.lastname}. كلمة المرور الافتراضية: 00000000`,
+        description: `تم إنشاء حساب للطالب ${formData.firstName} ${formData.lastName}. كلمة المرور الافتراضية: 00000000`,
       });
 
       // Reset form
       setFormData({
-        firstname: "",
-        lastname: "",
+        firstName: "",
+        lastName: "",
         phone: "",
         birth_date: "",
         address: "",
         school_name: "",
         year_of_study: "",
+        branch: "",
         password: "00000000",
       });
 
@@ -155,14 +193,14 @@ export function AddStudentModal({ onStudentAdded }) {
 
   const resetForm = () => {
     setFormData({
-      firstname: "",
-      lastname: "",
+      firstName: "",
+      lastName: "",
       phone: "",
       birth_date: "",
       address: "",
       school_name: "",
       year_of_study: "",
-      branch_id: "",
+      branch: "",
       password: "00000000",
     });
   };
@@ -183,20 +221,24 @@ export function AddStudentModal({ onStudentAdded }) {
           <DialogTitle className="text-right">إضافة طالب جديد</DialogTitle>
           <DialogDescription className="text-right">
             إنشاء حساب طالب جديد مع كلمة مرور افتراضية (00000000)
+            <br />
+            <span className="text-sm text-orange-600">
+              ⚠️ تأكد من أن رقم الهاتف غير مستخدم من قبل
+            </span>
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             {/* الاسم الأول */}
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="firstname" className="text-right">
+              <Label htmlFor="firstName" className="text-right">
                 الاسم الأول *
               </Label>
               <Input
-                id="firstname"
-                value={formData.firstname}
+                id="firstName"
+                value={formData.firstName}
                 onChange={(e) =>
-                  setFormData({ ...formData, firstname: e.target.value })
+                  setFormData({ ...formData, firstName: e.target.value })
                 }
                 className="col-span-3 text-right"
                 placeholder="أدخل الاسم الأول"
@@ -206,14 +248,14 @@ export function AddStudentModal({ onStudentAdded }) {
 
             {/* اسم العائلة */}
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="lastname" className="text-right">
+              <Label htmlFor="lastName" className="text-right">
                 اسم العائلة *
               </Label>
               <Input
-                id="lastname"
-                value={formData.lastname}
+                id="lastName"
+                value={formData.lastName}
                 onChange={(e) =>
-                  setFormData({ ...formData, lastname: e.target.value })
+                  setFormData({ ...formData, lastName: e.target.value })
                 }
                 className="col-span-3 text-right"
                 placeholder="أدخل اسم العائلة"
@@ -316,15 +358,15 @@ export function AddStudentModal({ onStudentAdded }) {
             </div>
 
             {/* الفرع الدراسي - للثانوي فقط */}
-            {["1AS", "2AS", "3AS"].includes(formData.year_of_study) && (
+            {["GRADE_1_HIGH", "GRADE_2_HIGH", "GRADE_3_HIGH"].includes(formData.year_of_study) && (
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="branch_id" className="text-right">
+                <Label htmlFor="branch" className="text-right">
                   الفرع الدراسي *
                 </Label>
                 <Select
-                  value={formData.branch_id}
+                  value={formData.branch}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, branch_id: value })
+                    setFormData({ ...formData, branch: value })
                   }
                   disabled={loadingBranches}
                 >
@@ -340,11 +382,11 @@ export function AddStudentModal({ onStudentAdded }) {
                   <SelectContent>
                     {availableBranches.map((branch) => (
                       <SelectItem
-                        key={branch.id}
-                        value={branch.id.toString()}
+                        key={branch.value}
+                        value={branch.value}
                         className="text-right"
                       >
-                        {branch.name}
+                        {branch.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -48,10 +48,11 @@ export function StudentsTable({ searchQuery = "" }) {
         params,
       );
 
-      setStudents(response.data);
-      setTotalPages(response.last_page);
+      // Express backend returns { data: [...], pagination: { page, limit, total, totalPages } }
+      setStudents(response.data || []);
+      setTotalPages(response.pagination?.totalPages || 1);
       setError(null);
-      console.log("✅ Students loaded:", response.data.length); // 🔧 Performance log
+      console.log("✅ Students loaded:", (response.data || []).length); // 🔧 Performance log
     } catch (err) {
       console.error("Error fetching students:", err);
       setError("فشل في تحميل بيانات الطلاب");
@@ -68,8 +69,9 @@ export function StudentsTable({ searchQuery = "" }) {
   // Handle row click to show student details
   const handleRowClick = useCallback(async (studentId) => {
     try {
-      const studentDetails = await studentsService.getStudent(studentId);
-      setSelectedStudent(studentDetails);
+      const response = await studentsService.getStudent(studentId);
+      // Express backend returns { success: true, data: {...} }
+      setSelectedStudent(response.data || response);
     } catch (err) {
       console.error("Error fetching student details:", err);
       alert("فشل في تحميل تفاصيل الطالب");
@@ -144,20 +146,20 @@ export function StudentsTable({ searchQuery = "" }) {
                   <img
                     src={
                       student.picture ||
-                      `https://ui-avatars.com/api/?name=${encodeURIComponent(student.firstname || "")}+${encodeURIComponent(student.lastname || "")}&background=0D8ABC&color=fff&size=100`
+                      `https://ui-avatars.com/api/?name=${encodeURIComponent(student.firstName || "")}+${encodeURIComponent(student.lastName || "")}&background=0D8ABC&color=fff&size=100`
                     }
-                    alt={`${student.firstname} ${student.lastname}`}
+                    alt={`${student.firstName} ${student.lastName}`}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(student.firstname || "")}+${encodeURIComponent(student.lastname || "")}&background=0D8ABC&color=fff&size=100`;
+                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(student.firstName || "")}+${encodeURIComponent(student.lastName || "")}&background=0D8ABC&color=fff&size=100`;
                     }}
                   />
                 </div>
               </TableCell>
               <TableCell className="text-right font-medium">
-                {student.firstname}
+                {student.firstName}
               </TableCell>
-              <TableCell className="text-right">{student.lastname}</TableCell>
+              <TableCell className="text-right">{student.lastName}</TableCell>
               <TableCell className="text-right">{student.phone}</TableCell>
               <TableCell className="text-right">
                 {student.birth_date || "غير محدد"}

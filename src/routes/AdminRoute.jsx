@@ -11,7 +11,7 @@ let globalValidationTimestamp = null;
 const VALIDATION_CACHE_TTL = 60 * 1000; // 1 minute
 
 const AdminRoute = ({ children }) => {
-  const { user, token } = useSelector((state) => state.auth);
+  const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
@@ -27,19 +27,17 @@ const AdminRoute = ({ children }) => {
 
       isInitializing.current = true;
       try {
-        // Get stored values
-        const storedToken = localStorage.getItem("token");
+        // Get stored values (token is in httpOnly cookie)
         const storedUserStr = localStorage.getItem("user");
 
         console.log("🔍 AdminRoute - Initializing auth:", {
-          hasStoredToken: !!storedToken,
           hasReduxUser: !!user,
           hasStoredUser: !!storedUserStr,
         });
 
-        // If no token, redirect to login
-        if (!storedToken) {
-          console.log("❌ No token found, redirecting to login");
+        // If no user, redirect to login
+        if (!storedUserStr) {
+          console.log("❌ No user found, redirecting to login");
           setIsLoading(false);
           return;
         }
@@ -70,7 +68,6 @@ const AdminRoute = ({ children }) => {
               );
               dispatch(
                 loginSuccess({
-                  token: storedToken,
                   user: globalValidationResult,
                 }),
               );
@@ -84,7 +81,7 @@ const AdminRoute = ({ children }) => {
               console.log("⏳ Reusing in-flight validation request...");
               try {
                 const profile = await globalValidationPromise;
-                dispatch(loginSuccess({ token: storedToken, user: profile }));
+                dispatch(loginSuccess({ user: profile }));
                 setIsLoading(false);
                 isInitializing.current = false;
                 return;
@@ -108,7 +105,7 @@ const AdminRoute = ({ children }) => {
             // If API call succeeds, use the fresh profile data
             if (profile) {
               console.log("✅ Token valid, updating Redux with fresh data");
-              dispatch(loginSuccess({ token: storedToken, user: profile }));
+              dispatch(loginSuccess({ user: profile }));
               setIsLoading(false);
               isInitializing.current = false;
               return;
@@ -125,7 +122,6 @@ const AdminRoute = ({ children }) => {
             if (apiError.response?.status === 401) {
               console.log("❌ Token invalid (401), clearing auth state");
               dispatch(logout());
-              localStorage.removeItem("token");
               localStorage.removeItem("user");
               localStorage.removeItem("device_uuid");
               setIsLoading(false);
@@ -139,7 +135,7 @@ const AdminRoute = ({ children }) => {
               if (storedUser.role === "admin") {
                 console.log("⚠️ Using stored admin user as fallback");
                 dispatch(
-                  loginSuccess({ token: storedToken, user: storedUser }),
+                  loginSuccess({ user: storedUser }),
                 );
                 setIsLoading(false);
                 isInitializing.current = false;
@@ -154,13 +150,11 @@ const AdminRoute = ({ children }) => {
         // If we get here, something went wrong
         console.log("❌ No valid authentication found, clearing state");
         dispatch(logout());
-        localStorage.removeItem("token");
         localStorage.removeItem("user");
         localStorage.removeItem("device_uuid");
       } catch (error) {
         console.error("❌ Auth initialization error:", error);
         dispatch(logout());
-        localStorage.removeItem("token");
         localStorage.removeItem("user");
         localStorage.removeItem("device_uuid");
       } finally {
@@ -198,10 +192,8 @@ const AdminRoute = ({ children }) => {
       }
     })();
 
-  const hasToken = !!(token || localStorage.getItem("token"));
-
-  // Redirect to login if no token
-  if (!hasToken) {
+  // Redirect to login if no user (token is in httpOnly cookie)
+  if (!currentUser) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

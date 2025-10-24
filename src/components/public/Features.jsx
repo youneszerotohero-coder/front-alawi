@@ -13,11 +13,10 @@ export default function FeaturesSection() {
   const navigate = useNavigate();
 
   const handleFeatureClick = (targetRoute) => {
-    // Check if user is logged in
-    const token = localStorage.getItem("token");
+    // Check if user is logged in (token is in httpOnly cookie)
     const user = localStorage.getItem("user");
 
-    if (token && user) {
+    if (user) {
       // User is logged in, go to target route
       navigate(targetRoute);
     } else {
