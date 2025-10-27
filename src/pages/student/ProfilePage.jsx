@@ -26,6 +26,39 @@ const formatBirthDate = (value) => {
   }).format(date);
 };
 
+// Helper function to convert grade to year format
+function middleSchoolGradeToYear(middleGrade, highGrade) {
+  if (middleGrade) {
+    const gradeMap = { "GRADE_1": "1AM", "GRADE_2": "2AM", "GRADE_3": "3AM", "GRADE_4": "4AM" };
+    return gradeMap[middleGrade];
+  }
+  if (highGrade) {
+    const gradeMap = { "GRADE_1": "1AS", "GRADE_2": "2AS", "GRADE_3": "3AS" };
+    return gradeMap[highGrade];
+  }
+  return null;
+}
+
+// Helper function to convert branch enum to Arabic name
+function getBranchNameFromEnum(branchEnum) {
+  if (!branchEnum) return "—";
+  
+  const branchMap = {
+    "SCIENTIFIC": "علمي",
+    "LITERARY": "أدبي",
+    "LANGUAGES": "لغات أجنبية",
+    "PHILOSOPHY": "فلسفة وآداب",
+    "ELECTRICAL": "تقني رياضي - كهرباء",
+    "MECHANICAL": "تقني رياضي - ميكانيك",
+    "CIVIL": "تقني رياضي - مدني",
+    "INDUSTRIAL": "تقني رياضي - صناعة",
+    "MATHEMATIC": "رياضيات",
+    "GESTION": "تسيير واقتصاد",
+  };
+  
+  return branchMap[branchEnum] || branchEnum;
+}
+
 // --- المكون الرئيسي لصفحة تعريف الطالب ---
 const StudentProfilePage = () => {
   // --- Récupérer l'utilisateur connecté depuis le service d'auth ---
@@ -37,14 +70,14 @@ const StudentProfilePage = () => {
 
   useEffect(() => {
     // If we don't have a filled user in localStorage, try to fetch the profile
+    const hasFirstName = storedUser?.firstname || storedUser?.firstName;
+    const hasLastName = storedUser?.lastname || storedUser?.lastName;
+    
     const shouldFetch =
       !storedUser ||
-      !storedUser.firstname ||
-      !storedUser.lastname ||
-      !storedUser.qr_token ||
-      !storedUser.birth_date ||
-      !storedUser.year_of_study ||
-      typeof storedUser.branch === "undefined";
+      !hasFirstName ||
+      !hasLastName;
+    
     if (shouldFetch) {
       setLoading(true);
       AuthService.getProfile()
@@ -62,7 +95,6 @@ const StudentProfilePage = () => {
     const handleProfileUpdate = (event) => {
       const updatedUser = event.detail || AuthService.getCurrentUser();
       if (updatedUser) {
-        console.log("Profile updated, refreshing...", updatedUser);
         setCurrentUser(updatedUser);
       }
     };
@@ -75,18 +107,28 @@ const StudentProfilePage = () => {
   const student = useMemo(() => {
     const u = currentUser || {};
     const branch = u.branch || null;
+    
+    // Combine firstName and lastName from backend
+    const fullName = `${u.firstName || ""} ${u.lastName || ""}`.trim();
+    
     return {
-      // Concaténer firstname/lastname si disponibles, sinon utiliser name ou téléphone
+      // Use firstName/lastName from backend (camelCase), fallback to old fields
       name:
+        fullName ||
         `${u.firstname || ""} ${u.lastname || ""}`.trim() ||
         u.name ||
         `طالب ${u.id || ""}`,
+      firstName: u.firstName || u.firstname || "",
+      lastName: u.lastName || u.lastname || "",
       id: u.id
         ? `S-${String(u.id).toString().slice(0, 6).padStart(6, "0")}`
         : "S-000000",
       phone: u.phone || "+213 000 000 000",
-      grade: YEAR_LABELS[u.year_of_study] || u.year_of_study || "غير محدد",
-      rawGrade: u.year_of_study || "",
+      grade: YEAR_LABELS[u.year_of_study] || 
+             YEAR_LABELS[middleSchoolGradeToYear(u.middleSchoolGrade, u.highSchoolGrade)] || 
+             u.year_of_study || 
+             "غير محدد",
+      rawGrade: u.year_of_study || u.middleSchoolGrade || u.highSchoolGrade || "",
       gradeLevel: "student",
       profilePic: u.picture || u.profilePic || null,
       // Generate QR from the user's public UUID if available
@@ -96,46 +138,17 @@ const StudentProfilePage = () => {
         : u.id
           ? `S-${String(u.id).toString().slice(0, 6).padStart(6, "0")}`
           : "S-000000",
-      birth_date: u.birth_date || "",
-      birthDateFormatted: formatBirthDate(u.birth_date),
+      birth_date: u.birthDate || u.birth_date || "",
+      birthDateFormatted: formatBirthDate(u.birthDate || u.birth_date),
       address: u.address || "",
-      school_name: u.school_name || "",
-      free_subscriber: u.free_subscriber || false,
-      branch,
-      branchName: branch?.name || "—",
+      school_name: u.schoolName || u.school_name || "",
+      free_subscriber: u.hasFreeSubscription !== undefined ? u.hasFreeSubscription : (u.free_subscriber || false),
+      branch: u.branch,
+      branchName: u.branch ? getBranchNameFromEnum(u.branch) : "—",
+      middleSchoolGrade: u.middleSchoolGrade,
+      highSchoolGrade: u.highSchoolGrade,
     };
   }, [currentUser]);
-
-  useEffect(() => {
-    if (!currentUser?.branch_id || currentUser?.branch) {
-      return;
-    }
-
-    let isCancelled = false;
-
-    const loadBranch = async () => {
-      try {
-        const response = await branchesService.getBranch(currentUser.branch_id);
-        const branchData = response?.data ?? null;
-        if (branchData && !isCancelled) {
-          setCurrentUser((prev) => {
-            if (!prev) return prev;
-            const updated = { ...prev, branch: branchData };
-            localStorage.setItem("user", JSON.stringify(updated));
-            return updated;
-          });
-        }
-      } catch (error) {
-        console.warn("Failed to load branch for student profile:", error);
-      }
-    };
-
-    loadBranch();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [currentUser?.branch_id, currentUser?.branch]);
 
   useEffect(() => {
     // fetch active subscriptions when user is ready
@@ -243,6 +256,16 @@ const StudentProfilePage = () => {
             <div>
               <span className="text-gray-500">الاسم:</span> {student.name}
             </div>
+            {student.firstName && student.lastName && (
+              <>
+                <div>
+                  <span className="text-gray-500">الاسم الأول:</span> {student.firstName}
+                </div>
+                <div>
+                  <span className="text-gray-500">اسم العائلة:</span> {student.lastName}
+                </div>
+              </>
+            )}
             <div>
               <span className="text-gray-500">الهاتف:</span> {student.phone}
             </div>

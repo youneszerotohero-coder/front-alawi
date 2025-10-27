@@ -27,8 +27,10 @@ import {
   CreditCard,
   Calendar,
   Loader2,
+  Repeat,
 } from "lucide-react";
-import { checkinService } from "@/services/api/checkin.service";
+import { paymentService } from "@/services/api/payment.service";
+import { attendanceService } from "@/services/api/attendance.service";
 import { toast } from "sonner";
 
 const currencyFormatter = new Intl.NumberFormat("ar-DZ", {
@@ -59,54 +61,22 @@ const formatDate = (value) => {
   }).format(date);
 };
 
-const addDays = (date, days) => {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-};
-
-const computeValidityRange = (session, mode, subscriptions, teacherUuid) => {
-  if (!session) return null;
-
-  if (mode === "session_pass") {
-    const startValue = session.start_time || session.session_date;
-    const endValue = session.end_time || startValue;
-    const start = startValue ? new Date(startValue) : new Date();
-    const end = endValue ? new Date(endValue) : start;
-    return {
-      start,
-      end,
-    };
+const formatTime = (timeString) => {
+  if (!timeString) return "—";
+  
+  // If it's just a time string like "14:30"
+  if (typeof timeString === 'string' && timeString.match(/^\d{2}:\d{2}$/)) {
+    return timeString;
   }
+  
+  // If it's a full date-time
+  const date = new Date(timeString);
+  if (Number.isNaN(date.getTime())) return "—";
 
-  const now = new Date();
-  let start = now;
-
-  if (Array.isArray(subscriptions) && teacherUuid) {
-    const teacherSubs = subscriptions
-      .filter((sub) => sub.teacher_uuid === teacherUuid && sub.ends_at)
-      .map((sub) => new Date(sub.ends_at))
-      .filter((d) => !Number.isNaN(d.getTime()))
-      .sort((a, b) => a.getTime() - b.getTime());
-
-    const lastEnd = teacherSubs.pop();
-    if (lastEnd && lastEnd.getTime() > now.getTime()) {
-      start = lastEnd;
-    }
-  }
-
-  return {
-    start,
-    end: addDays(start, 30),
-  };
-};
-
-const formatValidityRange = (range) => {
-  if (!range) return "—";
-  const start = formatDate(range.start);
-  const end = formatDate(range.end);
-  if (start === end) return start;
-  return `${start} → ${end}`;
+  return date.toLocaleTimeString("ar-DZ", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
 const formatAttendanceTime = (value) => {
@@ -121,139 +91,86 @@ const formatAttendanceTime = (value) => {
 
 export function StudentCheckinDialog({ student, open, onOpenChange }) {
   const [todaysSessions, setTodaysSessions] = useState([]);
+  const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [checkingIn, setCheckingIn] = useState({});
-  const [studentSubscriptions, setStudentSubscriptions] = useState(
-    student?.subscriptions || [],
-  );
   const [paymentConfirmation, setPaymentConfirmation] = useState(null);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
-  const [isProcessingConfirmation, setIsProcessingConfirmation] =
-    useState(false);
+  const [isProcessingConfirmation, setIsProcessingConfirmation] = useState(false);
 
-  const isFreeStudent = Boolean(student?.student?.free_subscriber);
+  // Check if student has free subscription
+  const isFreeStudent = student?.data?.student?.hasFreeSubscription || false;
 
   useEffect(() => {
-    if (open && student) {
-      const sessions = Array.isArray(student.todays_sessions)
-        ? student.todays_sessions
+    if (open && student?.data) {
+      const data = student.data;
+      
+      // Set today's sessions
+      const todaySessions = Array.isArray(data.todaysSessions)
+        ? data.todaysSessions
         : [];
-      const normalizedSessions = sessions.map((session) => ({
-        ...session,
-        has_subscription: isFreeStudent
-          ? true
-          : Boolean(session.has_subscription),
-        attendance_marked: Boolean(
-          session.attendance_marked || session.has_attendance,
-        ),
-        attendance_time: session.attendance_time || null,
-      }));
-      setTodaysSessions(normalizedSessions);
+      setTodaysSessions(todaySessions);
 
-      const subscriptions = Array.isArray(student.subscriptions)
-        ? student.subscriptions
+      // Set upcoming sessions (previously called repetitive sessions)
+      const upcoming = Array.isArray(data.upcomingSessions)
+        ? data.upcomingSessions
         : [];
-      setStudentSubscriptions(subscriptions);
+      setUpcomingSessions(upcoming);
     }
-  }, [open, student, isFreeStudent]);
+  }, [open, student]);
 
-  const isSubscribedToTeacher = (teacherUuid) => {
-    // Check if student has active subscription for this teacher
-    return (
-      studentSubscriptions.some(
-        (sub) =>
-          sub.teacher_uuid === teacherUuid &&
-          new Date(sub.ends_at) >= new Date(),
-      ) || false
-    );
-  };
-
-  const handleCheckIn = async (
-    teacherUuid,
-    sessionId = null,
-    mode = "monthly",
-    options = {},
-  ) => {
-    const { customSuccessMessage } = options;
-    const key = `${teacherUuid}-${sessionId ?? "no-session"}`;
+  // Handle payment for a session
+  const handlePayment = async (session, sessionsCount) => {
+    const key = `${session.id}-payment`;
     setCheckingIn((prev) => ({ ...prev, [key]: true }));
 
     try {
-      const effectiveMode = mode === "attendance_only" ? "monthly" : mode;
-      const attendanceResponse = await checkinService.scanQr({
-        user_uuid: student?.student?.uuid || student?.uuid,
-        teacher_uuid: teacherUuid,
-        session_id: sessionId,
-        mode: effectiveMode,
+      const studentId = student?.data?.student?.id;
+      if (!studentId) {
+        toast.error("معرف الطالب غير موجود");
+        return { success: false };
+      }
+
+      // Calculate amount
+      const amount = session.pricePerSession * sessionsCount;
+
+      // Create payment
+      const paymentResponse = await paymentService.createPayment({
+        sessionId: session.id,
+        studentId: studentId,
+        amount: amount,
+        sessionsCount: sessionsCount,
+        paymentMethod: "cash",
       });
 
-      const alreadyCheckedIn = Boolean(
-        attendanceResponse?.data?.already_checked_in,
-      );
+      if (paymentResponse.success) {
+        toast.success(
+          sessionsCount === 1
+            ? "تم دفع الجلسة بنجاح"
+            : "تم دفع الاشتراك الشهري بنجاح"
+        );
 
-      if (alreadyCheckedIn) {
-        toast.info("الطالب مسجل مسبقاً في هذه الجلسة");
-      } else if (customSuccessMessage) {
-        toast.success(customSuccessMessage);
-      } else if (mode === "attendance_only") {
-        toast.success("تم تسجيل الحضور بنجاح");
-      } else if (effectiveMode === "session_pass") {
-        toast.success("تم دفع الجلسة وتسجيل الحضور بنجاح");
-      } else {
-        toast.success("تم دفع الاشتراك وتسجيل الحضور بنجاح");
+        // Update the session in state to reflect the payment
+        const updateSessions = (sessions) =>
+          sessions.map((s) =>
+            s.id === session.id
+              ? {
+                  ...s,
+                  hasActivePayment: true,
+                  activePayment: paymentResponse.data,
+                }
+              : s
+          );
+
+        setTodaysSessions(updateSessions);
+        setUpcomingSessions(updateSessions);
+
+        return { success: true, payment: paymentResponse.data };
       }
 
-      const createdSubscription =
-        attendanceResponse?.data?.subscription_created;
-      if (createdSubscription) {
-        setStudentSubscriptions((prev) => [
-          ...prev,
-          {
-            teacher_uuid: teacherUuid,
-            starts_at: createdSubscription.starts_at,
-            ends_at: createdSubscription.ends_at,
-          },
-        ]);
-      }
-
-      setTodaysSessions((prevSessions) =>
-        prevSessions.map((session) => {
-          if (session.teacher.uuid !== teacherUuid) {
-            return session;
-          }
-
-          const updated = { ...session };
-
-          if (mode === "monthly") {
-            updated.has_subscription = true;
-          } else if (mode === "session_pass" && session.id === sessionId) {
-            updated.has_subscription = true;
-          }
-
-          if (sessionId && session.id === sessionId) {
-            updated.attendance_marked = true;
-            updated.attendance_time = new Date().toISOString();
-          }
-
-          if (alreadyCheckedIn && sessionId && session.id === sessionId) {
-            updated.attendance_marked = true;
-            if (!updated.attendance_time) {
-              updated.attendance_time = new Date().toISOString();
-            }
-          }
-
-          return updated;
-        }),
-      );
-
-      // Notify other components (e.g., stats cards) to refresh immediately
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("attendance:updated"));
-      }
-
-      return { success: true, attendanceResponse };
+      return { success: false };
     } catch (error) {
-      console.error("Error checking in:", error);
-      const message = error.response?.data?.message || "خطأ في تسجيل الحضور";
+      console.error("Error processing payment:", error);
+      const message = error.response?.data?.error || "خطأ في معالجة الدفع";
       toast.error(message);
       return { success: false, error };
     } finally {
@@ -261,14 +178,59 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
     }
   };
 
-  const formatTime = (timeString) => {
-    const date = new Date(timeString);
-    if (Number.isNaN(date.getTime())) return "—";
+  // Handle attendance marking
+  const handleMarkAttendance = async (session) => {
+    const key = `${session.id}-attendance`;
+    setCheckingIn((prev) => ({ ...prev, [key]: true }));
 
-    return date.toLocaleTimeString("ar-DZ", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    try {
+      const studentId = student?.data?.student?.id;
+      if (!studentId) {
+        toast.error("معرف الطالب غير موجود");
+        return { success: false };
+      }
+
+      // Mark attendance
+      const attendanceResponse = await attendanceService.markAttendance(
+        session.id,
+        studentId
+      );
+
+      if (attendanceResponse.success) {
+        toast.success("تم تسجيل الحضور بنجاح");
+
+        // Update the session in state to reflect the attendance
+        const updateSessions = (sessions) =>
+          sessions.map((s) =>
+            s.id === session.id
+              ? {
+                  ...s,
+                  hasAttendanceToday: true,
+                  attendanceToday: attendanceResponse.data,
+                }
+              : s
+          );
+
+        setTodaysSessions(updateSessions);
+        setUpcomingSessions(updateSessions);
+
+        // Notify other components to refresh
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("attendance:updated"));
+        }
+
+        return { success: true, attendance: attendanceResponse.data };
+      }
+
+      return { success: false };
+    } catch (error) {
+      console.error("Error marking attendance:", error);
+      const message = error.response?.data?.error || "خطأ في تسجيل الحضور";
+      toast.error(message);
+      return { success: false, error };
+    } finally {
+      setCheckingIn((prev) => ({ ...prev, [key]: false }));
+    }
   };
 
   const handleConfirmationOpenChange = (value) => {
@@ -279,34 +241,17 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
     }
   };
 
-  const openPaymentConfirmation = (session, mode) => {
-    if (!session?.teacher) return;
+  const openPaymentConfirmation = (session, sessionsCount) => {
+    if (!session) return;
 
-    const teacherUuid = session.teacher.uuid;
-    const price =
-      mode === "session_pass"
-        ? (session?.pricing?.session ?? session.teacher?.price_session)
-        : (session?.pricing?.subscription ??
-          session.teacher?.price_subscription);
-
-    const validityRange = computeValidityRange(
-      session,
-      mode,
-      studentSubscriptions,
-      teacherUuid,
-    );
-    const timeRange =
-      mode === "session_pass" && session.start_time && session.end_time
-        ? `${formatTime(session.start_time)} → ${formatTime(session.end_time)}`
-        : null;
+    const amount = session.pricePerSession * sessionsCount;
+    const paymentType = sessionsCount === 1 ? "جلسة واحدة" : "اشتراك شهري (4 جلسات)";
 
     setPaymentConfirmation({
       session,
-      mode,
-      teacher: session.teacher,
-      price,
-      validityRange,
-      timeRange,
+      sessionsCount,
+      amount,
+      paymentType,
     });
     setIsProcessingConfirmation(false);
     setConfirmationOpen(true);
@@ -321,17 +266,9 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
 
     setIsProcessingConfirmation(true);
 
-    const { session, mode } = paymentConfirmation;
-    const teacherUuid = session.teacher.uuid;
+    const { session, sessionsCount } = paymentConfirmation;
 
-    const successText =
-      mode === "session_pass"
-        ? "تم تأكيد دفع الجلسة وتسجيل الحضور بنجاح"
-        : "تم تأكيد الاشتراك وتسجيل الحضور بنجاح";
-
-    const result = await handleCheckIn(teacherUuid, session.id, mode, {
-      customSuccessMessage: successText,
-    });
+    const result = await handlePayment(session, sessionsCount);
 
     setIsProcessingConfirmation(false);
 
@@ -341,44 +278,121 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
     }
   };
 
-  const getSubscriptionStatus = (session) => {
-    const teacherUuid = session?.teacher?.uuid;
-
-    if (!teacherUuid) {
-      return {
-        isSubscribed: false,
-        color: "bg-red-100 text-red-800 border-red-200",
-        icon: XCircle,
-        text: "غير محدد",
-        isFree: false,
-      };
-    }
-
+  const getPaymentStatus = (session) => {
+    // Free students always have access
     if (isFreeStudent) {
       return {
-        isSubscribed: true,
+        hasPayment: true,
         color: "bg-emerald-100 text-emerald-800 border-emerald-200",
         icon: CheckCircle,
-        text: "مشترك مجاني",
-        isFree: true,
+        text: "طالب مجاني",
       };
     }
 
-    const hasSubscription =
-      Boolean(session?.has_subscription) || isSubscribedToTeacher(teacherUuid);
+    // Check if session has active payment
+    const hasPayment = session?.hasActivePayment || false;
 
     return {
-      isSubscribed: hasSubscription,
-      color: hasSubscription
+      hasPayment,
+      color: hasPayment
         ? "bg-green-100 text-green-800 border-green-200"
         : "bg-red-100 text-red-800 border-red-200",
-      icon: hasSubscription ? CheckCircle : XCircle,
-      text: hasSubscription ? "مشترك" : "غير مشترك",
-      isFree: false,
+      icon: hasPayment ? CheckCircle : XCircle,
+      text: hasPayment ? "مدفوع" : "غير مدفوع",
     };
   };
 
-  if (!student) return null;
+  if (!student?.data) return null;
+
+  const studentData = student.data.student;
+
+  // Helper function to render a session row
+  const renderSessionRow = (session) => {
+    const paymentStatus = getPaymentStatus(session);
+    const StatusIcon = paymentStatus.icon;
+    const hasAttendance = session.hasAttendanceToday;
+    const isProcessingPayment = checkingIn[`${session.id}-payment`];
+    const isProcessingAttendance = checkingIn[`${session.id}-attendance`];
+
+    return (
+      <div key={session.id} className="border rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-right flex-1">
+            <h4 className="font-medium text-lg">{session.title}</h4>
+            <p className="text-sm text-muted-foreground">
+              {session.teacher?.firstName} {session.teacher?.lastName}
+            </p>
+            {session.startTime && (
+              <p className="text-sm text-muted-foreground mt-1">
+                <Clock className="h-3 w-3 inline ml-1" />
+                {formatTime(session.startTime)} ({session.duration} دقيقة)
+              </p>
+            )}
+          </div>
+          <Badge className={paymentStatus.color}>
+            <StatusIcon className="h-3 w-3 ml-1" />
+            {paymentStatus.text}
+          </Badge>
+        </div>
+
+        <Separator className="my-3" />
+
+        {hasAttendance && (
+          <div className="text-sm text-green-600 text-right mb-2">
+            تم تسجيل الحضور
+            {session.attendanceToday?.checkInTime &&
+              ` عند ${formatAttendanceTime(session.attendanceToday.checkInTime)}`}
+          </div>
+        )}
+
+        <div className="flex gap-2 justify-end">
+          {paymentStatus.hasPayment ? (
+            <Button
+              onClick={() => handleMarkAttendance(session)}
+              disabled={isProcessingAttendance || hasAttendance}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isProcessingAttendance ? (
+                <Loader2 className="h-4 w-4 animate-spin ml-2" />
+              ) : (
+                <CheckCircle className="h-4 w-4 ml-2" />
+              )}
+              {hasAttendance ? "تم تسجيل الحضور" : "تسجيل الحضور"}
+            </Button>
+          ) : (
+            <>
+              <Button
+                onClick={() => openPaymentConfirmation(session, 1)}
+                disabled={isProcessingPayment}
+                variant="outline"
+                className="border-orange-500 text-orange-600 hover:bg-orange-50"
+              >
+                {isProcessingPayment ? (
+                  <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                ) : (
+                  <CreditCard className="h-4 w-4 ml-2" />
+                )}
+                دفع جلسة ({formatCurrency(session.pricePerSession)})
+              </Button>
+              <Button
+                onClick={() => openPaymentConfirmation(session, 4)}
+                disabled={isProcessingPayment}
+                variant="outline"
+                className="border-blue-500 text-blue-600 hover:bg-blue-50"
+              >
+                {isProcessingPayment ? (
+                  <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                ) : (
+                  <Calendar className="h-4 w-4 ml-2" />
+                )}
+                دفع شهري ({formatCurrency(session.pricePerSession * 4)})
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -389,8 +403,7 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
         <DialogHeader>
           <DialogTitle className="text-right flex items-center gap-2">
             <User className="h-5 w-5" />
-            معلومات الطالب - {student.student.firstname}{" "}
-            {student.student.lastname}
+            معلومات الطالب - {studentData.firstName} {studentData.lastName}
           </DialogTitle>
           <div id="student-checkin-description" className="sr-only">
             تفاصيل حضور وجلسات الطالب
@@ -406,46 +419,31 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4 text-right">
-                {/* Student Image */}
-                <div className="flex-shrink-0">
-                  <div className="w-24 h-24 rounded-lg overflow-hidden border shadow">
-                    <img
-                      src={
-                        student.student.picture ||
-                        `https://ui-avatars.com/api/?name=${encodeURIComponent(student.student.firstname || "")}+${encodeURIComponent(student.student.lastname || "")}&background=0D8ABC&color=fff&size=200`
-                      }
-                      alt={`${student.student.firstname} ${student.student.lastname}`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(student.student.firstname || "")}+${encodeURIComponent(student.student.lastname || "")}&background=0D8ABC&color=fff&size=200`;
-                      }}
-                    />
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-right">
+                <div>
+                  <p className="text-sm text-muted-foreground">الاسم الكامل</p>
+                  <p className="font-medium">
+                    {studentData.firstName} {studentData.lastName}
+                  </p>
                 </div>
-                {/* Student Details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      الاسم الكامل
-                    </p>
-                    <p className="font-medium">
-                      {student.student.firstname} {student.student.lastname}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      السنة الدراسية
-                    </p>
-                    <p className="font-medium">
-                      {student.student.year_of_study}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">الهاتف</p>
-                    <p className="font-medium">{student.student.phone}</p>
-                  </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">المرحلة الدراسية</p>
+                  <p className="font-medium">
+                    {studentData.middleSchoolGrade || studentData.highSchoolGrade || "—"}
+                  </p>
                 </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">الهاتف</p>
+                  <p className="font-medium">{studentData.phone || "—"}</p>
+                </div>
+                {studentData.hasFreeSubscription && (
+                  <div className="col-span-full">
+                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
+                      <CheckCircle className="h-3 w-3 ml-1" />
+                      طالب مجاني
+                    </Badge>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -461,124 +459,32 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
             <CardContent>
               {todaysSessions.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
-                  لا توجد جلسات اليوم
+                  لا توجد جلسات لهذا اليوم
                 </p>
               ) : (
                 <div className="space-y-4">
-                  {todaysSessions.map((session) => {
-                    const subscriptionStatus = getSubscriptionStatus(session);
-                    const StatusIcon = subscriptionStatus.icon;
-                    const checkInKey = `${session.teacher.uuid}-${session.id ?? "no-session"}`;
-                    const isProcessing = Boolean(checkingIn[checkInKey]);
-                    const alreadyMarked = Boolean(session.attendance_marked);
-
-                    return (
-                      <div key={session.id} className="border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="text-right">
-                            <h4 className="font-medium">
-                              {session.teacher.name}
-                            </h4>
-                            <p className="text-sm text-muted-foreground">
-                              {session.teacher.module || "مادة"}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge className={subscriptionStatus.color}>
-                              <StatusIcon className="h-3 w-3 ml-1" />
-                              {subscriptionStatus.text}
-                            </Badge>
-                            <div className="text-left">
-                              <p className="text-sm font-medium">
-                                {formatTime(session.start_time)}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                - {formatTime(session.end_time)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <Separator className="my-3" />
-
-                        {alreadyMarked && (
-                          <div className="text-sm text-green-600 text-right mb-2">
-                            تم تسجيل حضور هذا الطالب
-                            {session.attendance_time
-                              ? ` عند ${formatAttendanceTime(session.attendance_time)}`
-                              : ""}
-                          </div>
-                        )}
-
-                        <div className="flex gap-2 justify-end">
-                          {subscriptionStatus.isSubscribed ? (
-                            <Button
-                              onClick={() =>
-                                handleCheckIn(
-                                  session.teacher.uuid,
-                                  session.id,
-                                  "attendance_only",
-                                )
-                              }
-                              disabled={isProcessing || alreadyMarked}
-                              className="bg-green-600 hover:bg-green-700"
-                            >
-                              {isProcessing ? (
-                                <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                              ) : (
-                                <CheckCircle className="h-4 w-4 ml-2" />
-                              )}
-                              {alreadyMarked
-                                ? "تم تسجيل الحضور"
-                                : "تسجيل الحضور"}
-                            </Button>
-                          ) : (
-                            !subscriptionStatus.isFree && (
-                              <>
-                                <Button
-                                  onClick={() =>
-                                    openPaymentConfirmation(
-                                      session,
-                                      "session_pass",
-                                    )
-                                  }
-                                  disabled={isProcessing}
-                                  variant="outline"
-                                  className="border-orange-500 text-orange-600 hover:bg-orange-50"
-                                >
-                                  {isProcessing ? (
-                                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                  ) : (
-                                    <CreditCard className="h-4 w-4 ml-2" />
-                                  )}
-                                  دفع الجلسة
-                                </Button>
-                                <Button
-                                  onClick={() =>
-                                    openPaymentConfirmation(session, "monthly")
-                                  }
-                                  disabled={isProcessing}
-                                  variant="outline"
-                                  className="border-blue-500 text-blue-600 hover:bg-blue-50"
-                                >
-                                  {isProcessing ? (
-                                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                  ) : (
-                                    <Calendar className="h-4 w-4 ml-2" />
-                                  )}
-                                  دفع شهري
-                                </Button>
-                              </>
-                            )
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {todaysSessions.map((session) => renderSessionRow(session))}
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Upcoming Sessions */}
+          {upcomingSessions.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-right flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  الجلسات القادمة
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {upcomingSessions.map((session) => renderSessionRow(session))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <AlertDialog
@@ -596,32 +502,24 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
             <div className="space-y-3 text-right text-sm">
               <div>
                 <span className="text-muted-foreground">الطالب:</span>{" "}
-                {student?.student?.firstname} {student?.student?.lastname}
+                {studentData.firstName} {studentData.lastName}
+              </div>
+              <div>
+                <span className="text-muted-foreground">الجلسة:</span>{" "}
+                {paymentConfirmation?.session?.title}
               </div>
               <div>
                 <span className="text-muted-foreground">الأستاذ:</span>{" "}
-                {paymentConfirmation?.teacher?.name}
+                {paymentConfirmation?.session?.teacher?.firstName}{" "}
+                {paymentConfirmation?.session?.teacher?.lastName}
               </div>
               <div>
                 <span className="text-muted-foreground">نوع الدفع:</span>{" "}
-                {paymentConfirmation?.mode === "session_pass"
-                  ? "بطاقة جلسة"
-                  : "اشتراك شهري"}
-              </div>
-              {paymentConfirmation?.mode === "session_pass" &&
-                paymentConfirmation?.timeRange && (
-                  <div>
-                    <span className="text-muted-foreground">توقيت الجلسة:</span>{" "}
-                    {paymentConfirmation.timeRange}
-                  </div>
-                )}
-              <div>
-                <span className="text-muted-foreground">قيمة الدفع:</span>{" "}
-                {formatCurrency(paymentConfirmation?.price)}
+                {paymentConfirmation?.paymentType}
               </div>
               <div>
-                <span className="text-muted-foreground">فترة الصلاحية:</span>{" "}
-                {formatValidityRange(paymentConfirmation?.validityRange)}
+                <span className="text-muted-foreground">المبلغ:</span>{" "}
+                {formatCurrency(paymentConfirmation?.amount)}
               </div>
             </div>
 

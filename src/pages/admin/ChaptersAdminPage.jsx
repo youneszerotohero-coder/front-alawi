@@ -1,10 +1,7 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState } from "react";
 import { ChaptersGrid } from "@/components/admin/chapters-grid";
 import { CreateChapterModal } from "@/components/admin/create-chapter-modal";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Video, FileText, Users } from "lucide-react";
 import { useChapters } from "@/hooks/useChapters";
-import { userService } from "@/services/api/user.service";
 
 export default function AdminChaptersPage() {
   const {
@@ -20,61 +17,6 @@ export default function AdminChaptersPage() {
     uploadCoursePDF,
   } = useChapters();
 
-  const [userStats, setUserStats] = useState({
-    activeSubscribers: 0,
-    totalStudents: 0,
-  });
-
-  // Charger les statistiques des utilisateurs
-  useEffect(() => {
-    const loadUserStats = async () => {
-      try {
-        const stats = await userService.getUserStats();
-        setUserStats({
-          activeSubscribers: stats.activeSubscribers || 0,
-          totalStudents: stats.totalStudents || 0,
-        });
-      } catch (error) {
-        console.error("Error loading user stats:", error);
-      }
-    };
-    loadUserStats();
-  }, []);
-
-  // Calculate stats from actual data
-  const stats = useMemo(() => {
-    const totalChapters = chapters.length;
-    const totalCourses = chapters.reduce(
-      (sum, chapter) => sum + chapter.courses.length,
-      0,
-    );
-
-    // Calculer les PDFs et vidéos
-    const contentStats = chapters.reduce(
-      (acc, chapter) => {
-        chapter.courses.forEach((course) => {
-          if (course.pdf_summary) acc.coursePdfs++;
-          if (course.exercises_pdf) acc.exercisePdfs++;
-          if (course.videoRef || course.video_url) acc.videos++;
-        });
-        return acc;
-      },
-      { coursePdfs: 0, exercisePdfs: 0, videos: 0 },
-    );
-
-    return {
-      totalChapters,
-      totalCourses,
-      coursePdfs: contentStats.coursePdfs,
-      exercisePdfs: contentStats.exercisePdfs,
-      totalVideos: contentStats.videos,
-      activeSubscribers: userStats.activeSubscribers,
-      freeSubscribers: Math.max(
-        0,
-        userStats.totalStudents - userStats.activeSubscribers,
-      ),
-    };
-  }, [chapters, userStats]);
 
   const handleAddChapter = async (chapterData) => {
     return await addChapter(chapterData);
@@ -135,93 +77,6 @@ export default function AdminChaptersPage() {
         <CreateChapterModal onAddChapter={handleAddChapter} />
       </div>
 
-      {/* Content Stats */}
-      <div className="grid gap-4 md:grid-cols-5 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-right">
-              ملفات الدروس PDF
-            </CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-right">
-              {stats.coursePdfs}
-            </div>
-            <p className="text-xs text-muted-foreground text-right">
-              ملخصات الدروس
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-right">
-              ملفات التمارين PDF
-            </CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-right">
-              {stats.exercisePdfs}
-            </div>
-            <p className="text-xs text-muted-foreground text-right">
-              تمارين وواجبات
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-right">
-              الفيديوهات
-            </CardTitle>
-            <Video className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-right">
-              {stats.totalVideos}
-            </div>
-            <p className="text-xs text-muted-foreground text-right">
-              شروحات مصورة
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-right">
-              المشتركين النشطين
-            </CardTitle>
-            <Users className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-right">
-              {stats.activeSubscribers}
-            </div>
-            <p className="text-xs text-muted-foreground text-right">
-              مشتركين مدفوعين
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-right">
-              المستخدمين المجانيين
-            </CardTitle>
-            <Users className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-right">
-              {stats.freeSubscribers}
-            </div>
-            <p className="text-xs text-muted-foreground text-right">
-              مستخدمين غير مشتركين
-            </p>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Error Display */}
       {error && (

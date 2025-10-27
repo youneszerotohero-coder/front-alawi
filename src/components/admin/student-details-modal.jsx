@@ -20,6 +20,48 @@ import {
 import studentsService from "../../services/api/students.service";
 import { useState } from "react";
 
+// Helper function to get academic year in Arabic
+const getAcademicYear = (student) => {
+  if (student.middleSchoolGrade) {
+    const gradeMap = {
+      "GRADE_1": "السنة الأولى متوسط",
+      "GRADE_2": "السنة الثانية متوسط",
+      "GRADE_3": "السنة الثالثة متوسط",
+      "GRADE_4": "السنة الرابعة متوسط",
+    };
+    return gradeMap[student.middleSchoolGrade] || "غير محدد";
+  }
+  if (student.highSchoolGrade) {
+    const gradeMap = {
+      "GRADE_1": "السنة الأولى ثانوي",
+      "GRADE_2": "السنة الثانية ثانوي",
+      "GRADE_3": "السنة الثالثة ثانوي",
+    };
+    return gradeMap[student.highSchoolGrade] || "غير محدد";
+  }
+  return "غير محدد";
+};
+
+// Helper function to get branch name in Arabic
+const getBranchName = (branch) => {
+  if (!branch) return "غير محدد";
+  
+  const branchMap = {
+    "SCIENTIFIC": "علمي",
+    "LITERARY": "أدبي",
+    "LANGUAGES": "لغات أجنبية",
+    "PHILOSOPHY": "فلسفة وآداب",
+    "ELECTRICAL": "تقني رياضي - كهرباء",
+    "MECHANICAL": "تقني رياضي - ميكانيك",
+    "CIVIL": "تقني رياضي - مدني",
+    "INDUSTRIAL": "تقني رياضي - صناعة",
+    "MATHEMATIC": "رياضيات",
+    "GESTION": "تسيير واقتصاد",
+  };
+  
+  return branchMap[branch] || branch;
+};
+
 export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
   const formatDate = (dateString) => {
     if (!dateString) return "غير محدد";
@@ -233,14 +275,14 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
                   <label className="text-sm font-medium text-muted-foreground">
                     اسم المدرسة
                   </label>
-                  <p className="text-sm">{student.school_name || "غير محدد"}</p>
+                  <p className="text-sm">{student.schoolName || "غير محدد"}</p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-muted-foreground">
                     السنة الدراسية
                   </label>
                   <p className="text-sm">
-                    {student.middleSchoolGrade || student.highSchoolGrade || "غير محدد"}
+                    {getAcademicYear(student)}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -248,7 +290,7 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
                     الفرع الدراسي
                   </label>
                   <p className="text-sm">
-                    {student.branch || "غير محدد"}
+                    {getBranchName(student.branch)}
                   </p>
                 </div>
               </div>

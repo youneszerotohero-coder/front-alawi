@@ -26,6 +26,7 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         // Don't rewrite the path, keep /api as is
+        timeout: 120000, // 2 minutes timeout for large file uploads
       },
     },
   },

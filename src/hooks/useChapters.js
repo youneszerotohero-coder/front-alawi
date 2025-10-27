@@ -13,10 +13,51 @@ export const useChapters = () => {
       setLoading(true);
       setError(null);
       const response = await chapterService.getChapters(filters);
-      setChapters(response.data || []);
+      
+      // Backend returns { success: true, data: { chapters: [], pagination: {} } }
+      let chaptersData = [];
+      if (response?.success && response?.data?.chapters && Array.isArray(response.data.chapters)) {
+        chaptersData = response.data.chapters;
+      } else if (response?.data && Array.isArray(response.data)) {
+        chaptersData = response.data;
+      } else if (Array.isArray(response)) {
+        chaptersData = response;
+      } else {
+        console.warn("Unexpected API response structure:", response);
+        chaptersData = [];
+      }
+      
+      // Load courses for each chapter
+      const chaptersWithCourses = await Promise.all(
+        chaptersData.map(async (chapter) => {
+          try {
+            // Fetch courses for this chapter
+            const coursesResponse = await courseService.getCourses({ chapterId: chapter.id });
+            console.log(`Courses response for chapter ${chapter.id}:`, coursesResponse);
+            
+            // Backend returns { success: true, data: [...courses...], pagination: {...} }
+            const coursesData = coursesResponse?.data || [];
+            console.log(`Courses data for chapter ${chapter.id}:`, coursesData);
+            
+            return {
+              ...chapter,
+              courses: Array.isArray(coursesData) ? coursesData : []
+            };
+          } catch (error) {
+            console.error(`Error loading courses for chapter ${chapter.id}:`, error);
+            return {
+              ...chapter,
+              courses: []
+            };
+          }
+        })
+      );
+      
+      setChapters(chaptersWithCourses);
     } catch (err) {
       setError(err.message || "فشل في تحميل الفصول");
       console.error("Error loading chapters:", err);
+      setChapters([]); // Ensure we always have an array even on error
     } finally {
       setLoading(false);
     }
@@ -25,16 +66,18 @@ export const useChapters = () => {
   // Load chapters on mount
   useEffect(() => {
     loadChapters();
-  }, [loadChapters]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const addChapter = useCallback(async (chapterData) => {
     try {
       setLoading(true);
       setError(null);
       const response = await chapterService.createChapter(chapterData);
-      const newChapter = response.data;
+      // Backend returns { success: true, data: chapter }
+      const newChapter = response.data || response;
 
-      setChapters((prev) => [...prev, newChapter]);
+      setChapters((prev) => [...prev, { ...newChapter, courses: [] }]);
       return newChapter;
     } catch (err) {
       setError(err.message || "فشل في إنشاء الفصل");
@@ -50,7 +93,8 @@ export const useChapters = () => {
       setLoading(true);
       setError(null);
       const response = await chapterService.updateChapter(chapterId, updates);
-      const updatedChapter = response.data;
+      // Backend returns { success: true, data: chapter }
+      const updatedChapter = response.data || response;
 
       setChapters((prev) =>
         prev.map((chapter) =>
@@ -73,6 +117,7 @@ export const useChapters = () => {
     try {
       setLoading(true);
       setError(null);
+      // Backend returns { success: true, data: chapter, message: string }
       await chapterService.deleteChapter(chapterId);
 
       setChapters((prev) => prev.filter((chapter) => chapter.id !== chapterId));
@@ -90,46 +135,15 @@ export const useChapters = () => {
       setLoading(true);
       setError(null);
 
-      // Si courseData est déjà un FormData, ajouter juste le chapter_id
-      if (courseData instanceof FormData) {
-        courseData.append("chapter_id", chapterId);
-      } else {
-        // Sinon, créer un nouveau FormData avec toutes les données
-        const formData = new FormData();
-        formData.append("chapter_id", chapterId);
-
-        Object.entries(courseData).forEach(([key, value]) => {
-          if (value instanceof File) {
-            formData.append(key, value);
-          } else if (value !== null && value !== undefined) {
-            formData.append(key, value.toString());
-          }
-        });
-
-        courseData = formData;
-      }
-
-      console.log(
-        "Creating course with data:",
-        Object.fromEntries(courseData.entries()),
-      );
+      // Don't add chapterId here if it's already in the data
+      // The component should handle adding chapterId
+      
+      console.log("Creating course with data:", courseData);
       const response = await courseService.createCourse(courseData);
       console.log("Response received in addCourse:", response);
 
-      // S'assurer que nous avons une réponse valide en vérifiant la structure attendue
-      let courseResponseData = null;
-
-      // Vérifier les différentes structures possibles de la réponse
-      if (response?.data?.data) {
-        // Si la réponse est du type { data: { data: {...} } }
-        courseResponseData = response.data.data;
-      } else if (response?.data) {
-        // Si la réponse est du type { data: {...} }
-        courseResponseData = response.data;
-      } else if (response) {
-        // Si la réponse est directement les données
-        courseResponseData = response;
-      }
+      // Backend returns { success: true, data: course }
+      const courseResponseData = response.data || response;
 
       if (!courseResponseData) {
         console.error("Invalid response structure:", response);
@@ -169,7 +183,8 @@ export const useChapters = () => {
       setLoading(true);
       setError(null);
       const response = await courseService.updateCourse(courseId, updates);
-      const updatedCourse = response.data;
+      // Backend returns { success: true, data: course }
+      const updatedCourse = response.data || response;
 
       setChapters((prev) =>
         prev.map((chapter) =>
@@ -199,6 +214,7 @@ export const useChapters = () => {
     try {
       setLoading(true);
       setError(null);
+      // Backend returns { success: true, data: course, message: string }
       await courseService.deleteCourse(courseId);
 
       setChapters((prev) =>
@@ -239,14 +255,16 @@ export const useChapters = () => {
         // Mettre à jour le state des chapitres après l'upload réussi
         // Rechargez les données complètes après l'upload
         const reloadResponse = await courseService.getCourse(courseId);
-        console.log("Reloaded course data:", reloadResponse.data);
+        // Backend returns { success: true, data: course }
+        const reloadedCourse = reloadResponse.data || reloadResponse;
+        console.log("Reloaded course data:", reloadedCourse);
 
         setChapters((prev) => {
           const newChapters = prev.map((chapter) => {
             const newCourses = chapter.courses.map((course) => {
               if (course.id === courseId) {
                 // Utilisez les données fraîchement rechargées
-                return reloadResponse.data;
+                return reloadedCourse;
               }
               return course;
             });

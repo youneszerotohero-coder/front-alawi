@@ -2,14 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { EditTeacherModal } from "@/components/admin/edit-teacher-modal";
 import { TeacherDetailsDialog } from "@/components/admin/teacher-details-dialog";
 import {
@@ -27,7 +19,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { cacheService } from "@/services/cache.service"; // ⚡ Cache
 import { invalidateDashboardCache } from "@/hooks/useDashboardData"; // ⚡ Dashboard cache
 
-export function TeachersTable() {
+export function TeachersTable({ searchQuery = "" }) {
   const [teachers, setTeachers] = useState([]);
   const [meta, setMeta] = useState({
     current_page: 1,
@@ -41,10 +33,8 @@ export function TeachersTable() {
     useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebounce(search, 500); // 🔧 Debounce search input
+  const debouncedSearch = useDebounce(searchQuery, 500); // 🔧 Debounce search input
   const [yearFilter, setYearFilter] = useState("");
-  const [moduleFilter, setModuleFilter] = useState("");
   const [page, setPage] = useState(1);
   const [refreshingCounts, setRefreshingCounts] = useState(false);
   const [deleting, setDeleting] = useState(null);
@@ -86,7 +76,7 @@ export function TeachersTable() {
     return () => {
       mountedRef.current = false;
     };
-  }, [page, debouncedSearch, yearFilter, moduleFilter]); // 🔧 Use debouncedSearch instead of search
+  }, [page, debouncedSearch, yearFilter]); // 🔧 Use debouncedSearch instead of search
 
   const persistCache = () => {
     try {
@@ -229,45 +219,6 @@ export function TeachersTable() {
   return (
     <div className="space-y-6" dir="rtl">
       <div className="flex flex-col gap-4">
-        {/* Filters */}
-        <div className="grid gap-4 md:grid-cols-4 bg-white/70 p-4 rounded-lg border border-indigo-100">
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-xs font-medium text-gray-600">
-              بحث
-            </label>
-            <Input
-              placeholder="اكتب هنا للبحث..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="text-right"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">المادة</label>
-            <Select
-              value={moduleFilter || "ALL"}
-              onValueChange={(val) => {
-                setModuleFilter(val === "ALL" ? "" : val);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="الكل" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">الكل</SelectItem>
-                {filtersMeta.modules?.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

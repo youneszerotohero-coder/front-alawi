@@ -18,6 +18,8 @@ export const chapterService = {
         params.append("year_of_study", filters.year_of_study);
       if (filters.per_page) params.append("per_page", filters.per_page);
       if (filters.page) params.append("page", filters.page);
+      if (filters.includeCourses) params.append("includeCourses", "true");
+      if (filters.teacherId) params.append("teacherId", filters.teacherId);
 
       const response = await api.get(
         `${CHAPTER_ENDPOINTS.CHAPTERS}?${params.toString()}`,

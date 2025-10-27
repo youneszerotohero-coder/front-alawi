@@ -17,8 +17,6 @@ class AuthService {
 
       const response = await api.post("/auth/login", payload);
       const userData = response.data.data;
-      
-      console.log("Login response:", userData);
 
       // Express backend returns user data directly
       // Token is stored in httpOnly cookie automatically
@@ -27,6 +25,18 @@ class AuthService {
         phone: userData.phone,
         role: userData.role?.toLowerCase() || "student",
         createdAt: userData.createdAt,
+        // Include student fields if available
+        firstName: userData.firstName || "",
+        lastName: userData.lastName || "",
+        firstname: userData.firstName || userData.firstname || "",
+        lastname: userData.lastName || userData.lastname || "",
+        middleSchoolGrade: userData.middleSchoolGrade,
+        highSchoolGrade: userData.highSchoolGrade,
+        branch: userData.branch,
+        birthDate: userData.birthDate,
+        schoolName: userData.schoolName,
+        address: userData.address,
+        hasFreeSubscription: userData.hasFreeSubscription,
       };
 
       // Store user in localStorage for quick access
@@ -55,6 +65,9 @@ class AuthService {
         // Optional student fields
         firstName: userData.firstName || userData.firstname || "",
         lastName: userData.lastName || userData.lastname || "",
+        birthDate: userData.birthDate || userData.birth_date || null,
+        schoolName: userData.schoolName || userData.school_name || null,
+        address: userData.address || null,
         middleSchoolGrade: userData.middleSchoolGrade || null,
         highSchoolGrade: userData.highSchoolGrade || null,
         branch: userData.branch || null,
@@ -63,20 +76,23 @@ class AuthService {
       const response = await api.post("/auth/register", payload);
       const serverData = response.data.data;
 
-      console.log("Register response:", serverData);
-
-      // Backend returns the created student if student info was provided
-      const user = serverData.user || {
-        phone: userData.phone,
-        role: "student",
-      };
+      // Backend now returns student data directly (not wrapped in {user: ...})
+      const user = serverData;
 
       const formattedUser = {
-        id: user.userId || user.id,
+        id: user.id || user.userId,
         phone: userData.phone,
         role: "student",
         firstName: user.firstName || "",
         lastName: user.lastName || "",
+        birthDate: user.birthDate || null,
+        birth_date: user.birthDate || null,
+        schoolName: user.schoolName || null,
+        school_name: user.schoolName || null,
+        address: user.address || null,
+        middleSchoolGrade: user.middleSchoolGrade || null,
+        highSchoolGrade: user.highSchoolGrade || null,
+        branch: user.branch || null,
       };
 
       localStorage.setItem("user", JSON.stringify(formattedUser));
@@ -93,7 +109,6 @@ class AuthService {
       await api.post("/auth/logout");
     } catch (error) {
       // If logout fails, still proceed with local cleanup
-      console.warn("Logout API call failed:", error.message);
     } finally {
       // Always clean up local storage
       localStorage.removeItem("user");
@@ -107,8 +122,6 @@ class AuthService {
         }
       }
       keysToRemove.forEach((key) => localStorage.removeItem(key));
-      
-      console.log("✅ Logout complete - localStorage cleaned");
     }
   }
 
@@ -118,11 +131,32 @@ class AuthService {
       const userData = response.data.data;
       
       if (userData) {
+        // Store all student fields, not just basic user data
         const user = {
+          // Basic user fields
           id: userData.id,
+          userId: userData.userId || userData.id,
           phone: userData.phone,
           role: userData.role?.toLowerCase() || "student",
           createdAt: userData.createdAt,
+          
+          // Student specific fields (camelCase)
+          firstName: userData.firstName || "",
+          lastName: userData.lastName || "",
+          middleSchoolGrade: userData.middleSchoolGrade,
+          highSchoolGrade: userData.highSchoolGrade,
+          branch: userData.branch,
+          birthDate: userData.birthDate,
+          schoolName: userData.schoolName,
+          address: userData.address,
+          hasFreeSubscription: userData.hasFreeSubscription,
+          
+          // Legacy field support (snake_case)
+          firstname: userData.firstName || "",
+          lastname: userData.lastName || "",
+          birth_date: userData.birthDate,
+          school_name: userData.schoolName,
+          free_subscriber: userData.hasFreeSubscription,
         };
         
         localStorage.setItem("user", JSON.stringify(user));

@@ -14,6 +14,48 @@ import { useDebounce } from "@/hooks/useDebounce"; // 🔧 Use centralized debou
 import { cacheService } from "@/services/cache.service"; // ⚡ Cache optimization
 import { invalidateDashboardCache } from "@/hooks/useDashboardData"; // ⚡ Invalidate dashboard after mutations
 
+// Helper function to get academic year in Arabic
+const getAcademicYear = (student) => {
+  if (student.middleSchoolGrade) {
+    const gradeMap = {
+      "GRADE_1": "السنة الأولى متوسط",
+      "GRADE_2": "السنة الثانية متوسط",
+      "GRADE_3": "السنة الثالثة متوسط",
+      "GRADE_4": "السنة الرابعة متوسط",
+    };
+    return gradeMap[student.middleSchoolGrade] || "غير محدد";
+  }
+  if (student.highSchoolGrade) {
+    const gradeMap = {
+      "GRADE_1": "السنة الأولى ثانوي",
+      "GRADE_2": "السنة الثانية ثانوي",
+      "GRADE_3": "السنة الثالثة ثانوي",
+    };
+    return gradeMap[student.highSchoolGrade] || "غير محدد";
+  }
+  return "غير محدد";
+};
+
+// Helper function to get branch name in Arabic
+const getBranchName = (branch) => {
+  if (!branch) return "غير محدد";
+  
+  const branchMap = {
+    "SCIENTIFIC": "علمي",
+    "LITERARY": "أدبي",
+    "LANGUAGES": "لغات أجنبية",
+    "PHILOSOPHY": "فلسفة وآداب",
+    "ELECTRICAL": "تقني رياضي - كهرباء",
+    "MECHANICAL": "تقني رياضي - ميكانيك",
+    "CIVIL": "تقني رياضي - مدني",
+    "INDUSTRIAL": "تقني رياضي - صناعة",
+    "MATHEMATIC": "رياضيات",
+    "GESTION": "تسيير واقتصاد",
+  };
+  
+  return branchMap[branch] || branch;
+};
+
 export function StudentsTable({ searchQuery = "" }) {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [students, setStudents] = useState([]);
@@ -27,15 +69,13 @@ export function StudentsTable({ searchQuery = "" }) {
 
   // Optimized fetch function with caching
   const fetchStudents = useCallback(async (page = 1, search = "") => {
-    console.log("📚 Loading students...", { page, search }); // 🔧 Performance log
-
     try {
       setLoading(true);
       setCurrentPage(page); // Update page state immediately
 
       const params = {
         page,
-        per_page: 20,
+        limit: 20,
       };
 
       if (search && search.trim()) {
@@ -52,7 +92,6 @@ export function StudentsTable({ searchQuery = "" }) {
       setStudents(response.data || []);
       setTotalPages(response.pagination?.totalPages || 1);
       setError(null);
-      console.log("✅ Students loaded:", (response.data || []).length); // 🔧 Performance log
     } catch (err) {
       console.error("Error fetching students:", err);
       setError("فشل في تحميل بيانات الطلاب");
@@ -64,7 +103,8 @@ export function StudentsTable({ searchQuery = "" }) {
   // Effect for search changes
   useEffect(() => {
     fetchStudents(1, debouncedSearchQuery);
-  }, [debouncedSearchQuery, fetchStudents]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchQuery]);
 
   // Handle row click to show student details
   const handleRowClick = useCallback(async (studentId) => {
@@ -162,13 +202,13 @@ export function StudentsTable({ searchQuery = "" }) {
               <TableCell className="text-right">{student.lastName}</TableCell>
               <TableCell className="text-right">{student.phone}</TableCell>
               <TableCell className="text-right">
-                {student.birth_date || "غير محدد"}
+                {student.birthDate ? new Date(student.birthDate).toLocaleDateString('ar-DZ') : "غير محدد"}
               </TableCell>
               <TableCell className="text-right">
-                {student.year_of_study || "غير محدد"}
+                {getAcademicYear(student)}
               </TableCell>
               <TableCell className="text-right">
-                {student.branch?.name || "غير محدد"}
+                {getBranchName(student.branch)}
               </TableCell>
             </TableRow>
           ))}
@@ -216,7 +256,6 @@ export function StudentsTable({ searchQuery = "" }) {
             // ⚡ Invalidate cache after student update/delete
             cacheService.invalidateStudents();
             invalidateDashboardCache(); // Clear dashboard cache too
-            console.log("🔄 Student updated - Cache invalidated");
             
             // Refresh current page when student is updated
             fetchStudents(currentPage, debouncedSearchQuery);

@@ -20,23 +20,17 @@ import { Video, FileText, Clock, ExternalLink, Download } from "lucide-react";
 
 export function CourseDetailsModal({ course, open, onOpenChange }) {
   const handleWatchVideo = () => {
-    window.open(course.video_ref || course.videoLink, "_blank");
+    window.open(course.videoLink, "_blank");
   };
 
   const handleDownloadSummaryPDF = () => {
     // In a real app, this would trigger PDF download
-    console.log(
-      "Downloading Summary PDF:",
-      course.pdf_summary || course.summaryPdf,
-    );
+    console.log("Downloading Summary PDF:", course.explanationPdf);
   };
 
   const handleDownloadExercisesPDF = () => {
     // In a real app, this would trigger PDF download
-    console.log(
-      "Downloading Exercises PDF:",
-      course.exercises_pdf || course.exercisesPdf,
-    );
+    console.log("Downloading Exercises PDF:", course.activitiesPdf);
   };
 
   return (
@@ -112,7 +106,7 @@ export function CourseDetailsModal({ course, open, onOpenChange }) {
           </Card>
 
           {/* Summary PDF */}
-          {(course.pdf_summary || course.summaryPdf) && (
+          {course.explanationPdf && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2 text-right">
@@ -145,7 +139,7 @@ export function CourseDetailsModal({ course, open, onOpenChange }) {
           )}
 
           {/* Exercises PDF */}
-          {(course.exercises_pdf || course.exercisesPdf) && (
+          {course.activitiesPdf && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2 text-right">

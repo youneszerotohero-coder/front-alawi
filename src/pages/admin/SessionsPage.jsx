@@ -17,6 +17,8 @@ export default function AdminSessionsPage() {
     start_date: new Date().toISOString().split("T")[0],
     end_date: new Date().toISOString().split("T")[0],
   });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [stats, setStats] = useState({
     todayTotal: 0,
     todayProgrammed: 0,
@@ -28,6 +30,18 @@ export default function AdminSessionsPage() {
   const handleFiltersChange = useCallback((newFilters) => {
     setFilters(newFilters);
   }, []);
+
+  const handleSearchChange = (query) => {
+    setSearchQuery(query);
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setFilters({
+      start_date: new Date().toISOString().split("T")[0],
+      end_date: new Date().toISOString().split("T")[0],
+    });
+  };
 
   const fetchStats = async (currentFilters) => {
     try {
@@ -60,8 +74,8 @@ export default function AdminSessionsPage() {
   }, [filters]);
 
   const handleSessionAdded = () => {
+    setRefreshTrigger(prev => prev + 1);
     fetchStats(filters);
-    window.location.reload();
   };
 
   return (
@@ -84,7 +98,16 @@ export default function AdminSessionsPage() {
           <AddSessionModal onSessionAdded={handleSessionAdded} />
         </CardHeader>
         <CardContent>
-          <SessionsTable filters={filters} />
+          <SessionsFilters
+            onFiltersChange={handleFiltersChange}
+            onSearchChange={handleSearchChange}
+            onClearFilters={handleClearFilters}
+          />
+          <SessionsTable 
+            filters={filters} 
+            searchQuery={searchQuery} 
+            key={refreshTrigger} 
+          />
         </CardContent>
       </Card>
     </div>

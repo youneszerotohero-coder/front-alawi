@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,28 +19,42 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BookOpen } from "lucide-react";
-
-const iconOptions = [
-  { value: "📐", label: "📐 مسطرة" },
-  { value: "⚛️", label: "⚛️ ذرة" },
-  { value: "🧪", label: "🧪 أنبوب اختبار" },
-  { value: "🔬", label: "🔬 مجهر" },
-  { value: "📚", label: "📚 كتب" },
-  { value: "🌍", label: "🌍 كرة أرضية" },
-  { value: "🎨", label: "🎨 فن" },
-  { value: "🎵", label: "🎵 موسيقى" },
-  { value: "💻", label: "💻 حاسوب" },
-  { value: "🏛️", label: "🏛️ مبنى" },
-];
+import { teacherService } from "@/services/api/teacher.service";
 
 export function CreateChapterModal({ onAddChapter }) {
   const [open, setOpen] = useState(false);
+  const [teachers, setTeachers] = useState([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    icon: "",
-    year_target: "",
+    teacherId: "",
   });
+
+  // Load teachers when modal opens
+  useEffect(() => {
+    if (open) {
+      loadTeachers();
+    }
+  }, [open]);
+
+  const loadTeachers = async () => {
+    try {
+      setLoadingTeachers(true);
+      console.log("🔍 Loading teachers...");
+      const response = await teacherService.getTeachers();
+      console.log("✅ Teachers response:", response);
+      // Service returns { data: [...], pagination: {...} }
+      const teachersList = response?.data || [];
+      console.log("📋 Teachers list:", teachersList, "Count:", teachersList.length);
+      setTeachers(teachersList);
+    } catch (error) {
+      console.error("❌ Error loading teachers:", error);
+      setTeachers([]);
+    } finally {
+      setLoadingTeachers(false);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -51,8 +65,7 @@ export function CreateChapterModal({ onAddChapter }) {
     setFormData({
       title: "",
       description: "",
-      icon: "",
-      year_target: "",
+      teacherId: "",
     });
   };
 
@@ -114,49 +127,30 @@ export function CreateChapterModal({ onAddChapter }) {
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="icon" className="text-right">
-                الأيقونة
+              <Label htmlFor="teacherId" className="text-right">
+                الأستاذ
               </Label>
               <Select
-                value={formData.icon}
+                value={formData.teacherId}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, icon: value })
+                  setFormData({ ...formData, teacherId: value })
                 }
+                disabled={loadingTeachers}
               >
                 <SelectTrigger className="col-span-3 text-right">
-                  <SelectValue placeholder="اختر أيقونة" />
+                  <SelectValue placeholder={loadingTeachers ? "جاري التحميل..." : "اختر الأستاذ"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {iconOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                  {teachers.map((teacher) => (
+                    <SelectItem key={teacher.id} value={teacher.id}>
+                      {teacher.firstName} {teacher.lastName}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="year_target" className="text-right">
-                السنة المستهدفة
-              </Label>
-              <Select
-                value={formData.year_target}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, year_target: value })
-                }
-              >
-                <SelectTrigger className="col-span-3 text-right">
-                  <SelectValue placeholder="اختر السنة المستهدفة" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1AM">الأولى متوسط</SelectItem>
-                  <SelectItem value="2AM">الثانية متوسط</SelectItem>
-                  <SelectItem value="3AM">الثالثة متوسط</SelectItem>
-                  <SelectItem value="4AM">الرابعة متوسط</SelectItem>
-                  <SelectItem value="1AS">الأولى ثانوي</SelectItem>
-                  <SelectItem value="2AS">الثانية ثانوي</SelectItem>
-                  <SelectItem value="3AS">الثالثة ثانوي</SelectItem>
+                  {teachers.length === 0 && !loadingTeachers && (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground text-center">
+                      لا يوجد أساتذة متاحون
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>

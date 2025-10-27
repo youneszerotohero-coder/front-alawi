@@ -3,6 +3,7 @@ import { useDispatch } from "react-redux";
 import { loginSuccess } from "./store/slices/authSlice";
 import AppRouter from "./routes/router";
 import { Toaster } from "./components/ui/toaster";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 
 function App() {
   const dispatch = useDispatch();
@@ -36,10 +37,10 @@ function App() {
   }, [dispatch]);
 
   return (
-    <>
+    <ErrorBoundary>
       <AppRouter />
       <Toaster />
-    </>
+    </ErrorBoundary>
   );
 }
 

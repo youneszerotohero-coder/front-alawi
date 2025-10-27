@@ -16,11 +16,16 @@ import { useToast } from "../../hooks/use-toast";
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
+    firstname: "",
     firstName: "",
+    lastname: "",
     lastName: "",
     phone: "",
     password: "",
     password_confirmation: "",
+    birth_date: "",
+    address: "",
+    school_name: "",
     schoolLevel: "MIDDLE_SCHOOL", // MIDDLE_SCHOOL or HIGH_SCHOOL
     middleSchoolGrade: "GRADE_1", // GRADE_1, GRADE_2, GRADE_3, GRADE_4
     highSchoolGrade: null, // GRADE_1, GRADE_2, GRADE_3
@@ -102,8 +107,8 @@ const RegisterPage = () => {
     const newErrors = {};
 
     // Check both old and new field names for compatibility
-    const firstName = formData.firstName || formData.firstname || "";
-    const lastName = formData.lastName || formData.lastname || "";
+    const firstName = formData.firstname || formData.firstName || "";
+    const lastName = formData.lastname || formData.lastName || "";
     
     if (!firstName.trim()) {
       newErrors.firstName = "الاسم الأول مطلوب";
@@ -141,41 +146,35 @@ const RegisterPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    console.log("Form submitted! Current form data:", formData);
 
     const isValid = validateForm();
     
     if (!isValid) {
-      console.log("Validation failed!");
       // Errors will be shown in the UI via state
       return;
     }
-    
-    console.log("Validation passed, proceeding with registration...");
 
     setIsLoading(true);
 
     try {
-      // Use both old and new field names for compatibility
-      const firstName = formData.firstName || formData.firstname || "";
-      const lastName = formData.lastName || formData.lastname || "";
+      // Get the actual values from formData
+      const firstName = formData.firstname || formData.firstName || "";
+      const lastName = formData.lastname || formData.lastName || "";
       
       const userData = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         phone: formData.phone,
         password: formData.password,
+        birthDate: formData.birth_date || null,
+        schoolName: formData.school_name || null,
+        address: formData.address || null,
         middleSchoolGrade: formData.middleSchoolGrade || null,
         highSchoolGrade: formData.highSchoolGrade || null,
         branch: formData.branch || null,
       };
 
-      console.log("Sending registration data:", userData);
-
       const response = await authService.register(userData);
-
-      console.log("Registration response:", response);
 
       const { user } = response;
 
@@ -247,19 +246,21 @@ const RegisterPage = () => {
         });
       }
     } else {
-      // Map old field names to new ones for backward compatibility
-      const fieldMap = {
-        'firstname': 'firstName',
-        'lastname': 'lastName',
-        'branch_id': 'branch',
-      };
+      // Update the field with its exact name
+      const updatedData = { ...formData, [name]: value };
       
-      const mappedName = fieldMap[name] || name;
+      // Also store in alternate field name for compatibility
+      if (name === 'firstname') {
+        updatedData.firstName = value;
+      } else if (name === 'lastname') {
+        updatedData.lastName = value;
+      } else if (name === 'firstName') {
+        updatedData.firstname = value;
+      } else if (name === 'lastName') {
+        updatedData.lastname = value;
+      }
       
-      setFormData({
-        ...formData,
-        [mappedName]: value,
-      });
+      setFormData(updatedData);
     }
 
     // Clear error when user starts typing
@@ -323,7 +324,7 @@ const RegisterPage = () => {
                         errors.firstname ? "border-red-500" : "border-gray-300"
                       }`}
                       placeholder="الاسم الأول"
-                      value={formData.firstName || formData.firstname || ""}
+                      value={formData.firstname || ""}
                       onChange={handleChange}
                     />
                   </div>
@@ -354,7 +355,7 @@ const RegisterPage = () => {
                         errors.lastname ? "border-red-500" : "border-gray-300"
                       }`}
                       placeholder="الاسم الأخير"
-                      value={formData.lastName || formData.lastname || ""}
+                      value={formData.lastname || ""}
                       onChange={handleChange}
                     />
                   </div>

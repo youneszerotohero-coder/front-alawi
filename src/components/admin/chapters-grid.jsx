@@ -60,6 +60,7 @@ export function ChaptersGrid({
                     size="sm"
                     variant="outline"
                     onClick={() => handleEditChapter(chapter)}
+                    className="border-pink-200 text-pink-700 hover:bg-pink-50 hover:border-pink-300"
                   >
                     <Edit className="h-4 w-4 ml-2" />
                     تعديل

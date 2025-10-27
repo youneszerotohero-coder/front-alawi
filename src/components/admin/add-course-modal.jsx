@@ -25,10 +25,9 @@ export function AddCourseModal({
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    video_ref: "",
-    duration: "",
-    summaryPdf: null,
-    exercisesPdf: null,
+    videoLink: "",
+    explanationPdf: null,
+    activitiesPdf: null,
   });
   const [uploading, setUploading] = useState(false);
 
@@ -38,33 +37,36 @@ export function AddCourseModal({
       try {
         setUploading(true);
 
-        // Create course first
+        // Create course first - include chapterId in the data
         const courseData = {
+          chapterId: chapterId,
           title: formData.title,
           description: formData.description,
-          video_ref: formData.video_ref,
-          duration: formData.duration,
         };
+        
+        // Only add videoLink if it has a value
+        if (formData.videoLink && formData.videoLink.trim()) {
+          courseData.videoLink = formData.videoLink;
+        }
 
         const newCourse = await onAddCourse(chapterId, courseData);
 
         // Upload PDFs if they exist
-        if (formData.summaryPdf && onUploadPDF) {
-          await onUploadPDF(newCourse.id, formData.summaryPdf, "summary");
+        if (formData.explanationPdf && onUploadPDF) {
+          await onUploadPDF(newCourse.id, formData.explanationPdf, "explanation");
         }
 
-        if (formData.exercisesPdf && onUploadPDF) {
-          await onUploadPDF(newCourse.id, formData.exercisesPdf, "exercises");
+        if (formData.activitiesPdf && onUploadPDF) {
+          await onUploadPDF(newCourse.id, formData.activitiesPdf, "activities");
         }
 
         setOpen(false);
         setFormData({
           title: "",
           description: "",
-          video_ref: "",
-          duration: "",
-          summaryPdf: null,
-          exercisesPdf: null,
+          videoLink: "",
+          explanationPdf: null,
+          activitiesPdf: null,
         });
       } catch (error) {
         console.error("Error creating course:", error);
@@ -77,12 +79,12 @@ export function AddCourseModal({
 
   const handleSummaryFileChange = (e) => {
     const file = e.target.files?.[0] || null;
-    setFormData({ ...formData, summaryPdf: file });
+    setFormData({ ...formData, explanationPdf: file });
   };
 
   const handleExercisesFileChange = (e) => {
     const file = e.target.files?.[0] || null;
-    setFormData({ ...formData, exercisesPdf: file });
+    setFormData({ ...formData, activitiesPdf: file });
   };
 
   const removeFile = (type) => {
@@ -147,35 +149,18 @@ export function AddCourseModal({
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="video-ref" className="text-right">
-                رابط الفيديو
+              <Label htmlFor="video-link" className="text-right">
+                رابط الفيديو (اختياري)
               </Label>
               <Input
-                id="video-ref"
+                id="video-link"
                 type="url"
-                value={formData.video_ref}
+                value={formData.videoLink}
                 onChange={(e) =>
-                  setFormData({ ...formData, video_ref: e.target.value })
+                  setFormData({ ...formData, videoLink: e.target.value })
                 }
                 className="col-span-3 text-right"
                 placeholder="https://youtube.com/watch?v=..."
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="duration" className="text-right">
-                المدة
-              </Label>
-              <Input
-                id="duration"
-                value={formData.duration}
-                onChange={(e) =>
-                  setFormData({ ...formData, duration: e.target.value })
-                }
-                className="col-span-3 text-right"
-                placeholder="مثال: 45 دقيقة"
-                required
               />
             </div>
 
@@ -201,17 +186,17 @@ export function AddCourseModal({
                   رفع ملف PDF للملخص
                 </p>
 
-                {formData.summaryPdf && (
+                {formData.explanationPdf && (
                   <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-blue-600" />
                         <div>
                           <p className="text-sm font-medium text-blue-800">
-                            {formData.summaryPdf.name}
+                            {formData.explanationPdf.name}
                           </p>
                           <p className="text-xs text-blue-600">
-                            {(formData.summaryPdf.size / 1024 / 1024).toFixed(
+                            {(formData.explanationPdf.size / 1024 / 1024).toFixed(
                               2,
                             )}{" "}
                             MB
@@ -222,7 +207,7 @@ export function AddCourseModal({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => removeFile("summaryPdf")}
+                        onClick={() => removeFile("explanationPdf")}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -254,17 +239,17 @@ export function AddCourseModal({
                   رفع ملف PDF للتمارين
                 </p>
 
-                {formData.exercisesPdf && (
+                {formData.activitiesPdf && (
                   <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-green-600" />
                         <div>
                           <p className="text-sm font-medium text-green-800">
-                            {formData.exercisesPdf.name}
+                            {formData.activitiesPdf.name}
                           </p>
                           <p className="text-xs text-green-600">
-                            {(formData.exercisesPdf.size / 1024 / 1024).toFixed(
+                            {(formData.activitiesPdf.size / 1024 / 1024).toFixed(
                               2,
                             )}{" "}
                             MB
@@ -275,7 +260,7 @@ export function AddCourseModal({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => removeFile("exercisesPdf")}
+                        onClick={() => removeFile("activitiesPdf")}
                       >
                         <X className="h-4 w-4" />
                       </Button>

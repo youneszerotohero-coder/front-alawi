@@ -13,7 +13,10 @@ export const courseService = {
     try {
       const params = new URLSearchParams();
 
-      if (filters.chapter_id) params.append("chapter_id", filters.chapter_id);
+      // Handle both chapterId and chapter_id for backward compatibility
+      if (filters.chapterId || filters.chapter_id) {
+        params.append("chapterId", filters.chapterId || filters.chapter_id);
+      }
       if (filters.year_target)
         params.append("year_target", filters.year_target);
       if (filters.search) params.append("search", filters.search);

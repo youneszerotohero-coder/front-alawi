@@ -50,7 +50,7 @@ import { EditSessionModal } from "./edit-session-modal";
 import { cacheService } from "@/services/cache.service"; // ⚡ Cache optimization
 import { invalidateDashboardCache } from "@/hooks/useDashboardData"; // ⚡ Invalidate dashboard
 
-export function SessionsTable({ filters = {} }) {
+export function SessionsTable({ filters = {}, searchQuery = "" }) {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -69,11 +69,15 @@ export function SessionsTable({ filters = {} }) {
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [sessionToEdit, setSessionToEdit] = useState(null);
+  const [instancesDialogOpen, setInstancesDialogOpen] = useState(false);
+  const [selectedSessionForInstances, setSelectedSessionForInstances] = useState(null);
+  const [sessionInstances, setSessionInstances] = useState([]);
+  const [instancesLoading, setInstancesLoading] = useState(false);
 
   // Fetch sessions when component mounts or filters change
   useEffect(() => {
     fetchSessions();
-  }, [filters, currentPage]);
+  }, [filters, searchQuery, currentPage]);
 
   const fetchSessions = async () => {
     try {
@@ -87,9 +91,10 @@ export function SessionsTable({ filters = {} }) {
         async () =>
           await sessionService.getSessions({
             ...filters,
+            search: searchQuery,
             page: currentPage,
           }),
-        { ...filters, page: currentPage },
+        { ...filters, search: searchQuery, page: currentPage },
       );
 
       console.log("📥 Sessions response:", response);
@@ -153,6 +158,37 @@ export function SessionsTable({ filters = {} }) {
         variant: "destructive",
       });
     }
+  };
+
+  const fetchSessionInstances = async (sessionId) => {
+    try {
+      setInstancesLoading(true);
+      const response = await sessionService.getSession(sessionId);
+      if (response && response.data) {
+        setSessionInstances(response.data.instances || []);
+      }
+    } catch (error) {
+      console.error("Error fetching session instances:", error);
+      toast({
+        title: "خطأ في تحميل تفاصيل الجلسة",
+        description: "تعذر تحميل تفاصيل الجلسة",
+        variant: "destructive",
+      });
+    } finally {
+      setInstancesLoading(false);
+    }
+  };
+
+  const handleSessionClick = (session) => {
+    setSelectedSessionForInstances(session);
+    setInstancesDialogOpen(true);
+    fetchSessionInstances(session.id);
+  };
+
+  const handleInstancesDialogClose = () => {
+    setInstancesDialogOpen(false);
+    setSelectedSessionForInstances(null);
+    setSessionInstances([]);
   };
 
   const handleStatusSubmit = async () => {
@@ -350,8 +386,6 @@ export function SessionsTable({ filters = {} }) {
               <TableHead className="text-right">التاريخ/الأيام</TableHead>
               <TableHead className="text-right">الوقت</TableHead>
               <TableHead className="text-right">المدة</TableHead>
-              <TableHead className="text-right">الحالة</TableHead>
-              <TableHead className="text-right">الطلاب</TableHead>
               <TableHead className="text-right">الإجراءات</TableHead>
             </TableRow>
           </TableHeader>
@@ -362,7 +396,11 @@ export function SessionsTable({ filters = {} }) {
               const isCancelled = statusRaw === "cancelled";
 
               return (
-                <TableRow key={session.id}>
+                <TableRow 
+                  key={session.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSessionClick(session)}
+                >
                   <TableCell className="font-medium text-right">
                     {session.teacher?.firstName && session.teacher?.lastName
                       ? `${session.teacher.firstName} ${session.teacher.lastName}`
@@ -410,40 +448,13 @@ export function SessionsTable({ filters = {} }) {
                     {session.duration ? `${session.duration} دقيقة` : "غير محدد"}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Select
-                      value={session.status || "SCHEDULED"}
-                      onValueChange={(value) => handleStatusChange(session.id, value)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue>
-                          {session.status === "COMPLETED" && (
-                            <Badge variant="default">مكتملة</Badge>
-                          )}
-                          {session.status === "CANCELLED" && (
-                            <Badge variant="destructive">ملغية</Badge>
-                          )}
-                          {session.status === "SCHEDULED" && (
-                            <Badge variant="secondary">مجدولة</Badge>
-                          )}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="SCHEDULED">مجدولة</SelectItem>
-                        <SelectItem value="COMPLETED">مكتملة</SelectItem>
-                        <SelectItem value="CANCELLED">ملغية</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span>{session.students_count || 0}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
+                        <Button 
+                          variant="ghost" 
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <span className="sr-only">فتح القائمة</span>
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
@@ -624,6 +635,87 @@ export function SessionsTable({ filters = {} }) {
           setSessionToEdit(null);
         }}
       />
+
+      {/* Session Instances Dialog */}
+      <Dialog open={instancesDialogOpen} onOpenChange={handleInstancesDialogClose}>
+        <DialogContent className="max-w-4xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-right">
+              تفاصيل الجلسة - {selectedSessionForInstances?.teacher_name || "غير محدد"}
+            </DialogTitle>
+            <DialogDescription className="text-right">
+              عرض جميع حالات الجلسة مع تفاصيل الحضور
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {instancesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="mr-2">جاري تحميل التفاصيل...</span>
+              </div>
+            ) : sessionInstances.length > 0 ? (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-right">التاريخ</TableHead>
+                      <TableHead className="text-right">الوقت</TableHead>
+                      <TableHead className="text-right">الحالة</TableHead>
+                      <TableHead className="text-right">عدد الحضور</TableHead>
+                      <TableHead className="text-right">ملاحظات</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sessionInstances.map((instance, index) => (
+                      <TableRow key={instance.id || index}>
+                        <TableCell className="text-right">
+                          {formatDate(instance.date || instance.created_at)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatTime(instance.start_time || instance.created_at)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge 
+                            variant={
+                              instance.status === "completed" ? "default" :
+                              instance.status === "cancelled" ? "destructive" :
+                              "secondary"
+                            }
+                          >
+                            {instance.status === "completed" ? "مكتملة" :
+                             instance.status === "cancelled" ? "ملغية" :
+                             "مجدولة"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <span>{instance.attendance_count || 0}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {instance.notes || instance.cancel_reason || "لا توجد ملاحظات"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">لا توجد تفاصيل متاحة لهذه الجلسة</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleInstancesDialogClose}>
+              إغلاق
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

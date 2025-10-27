@@ -20,9 +20,8 @@ export const studentService = {
    */
   async getStudentWithSessions(studentId) {
     try {
-      const response = await api.get(`/students/${studentId}`);
-      // Express backend returns { success: true, data: {...} }
-      // The backend includes attendances and payments in the student data
+      const response = await api.get(`/students/${studentId}/checkin`);
+      // Express backend returns { success: true, data: { student, todaysSessions, repetitiveSessions } }
       return response.data;
     } catch (error) {
       console.error("Error fetching student with sessions:", error);

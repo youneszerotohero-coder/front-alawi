@@ -21,10 +21,9 @@ export function EditCourseModal({
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    video_ref: "",
-    duration: "",
-    pdf_summary: null,
-    exercises_pdf: null,
+    videoLink: "",
+    explanationPdf: null,
+    activitiesPdf: null,
   });
 
   const [uploading, setUploading] = useState(false);
@@ -34,19 +33,17 @@ export function EditCourseModal({
       setFormData({
         title: course.title || "",
         description: course.description || "",
-        video_ref: course.video_ref || "",
-        duration: course.duration || "",
-        pdf_summary: null,
-        exercises_pdf: null,
+        videoLink: course.videoLink || "",
+        explanationPdf: null,
+        activitiesPdf: null,
       });
     } else {
       setFormData({
         title: "",
         description: "",
-        video_ref: "",
-        duration: "",
-        summaryPdf: null,
-        exercisesPdf: null,
+        videoLink: "",
+        explanationPdf: null,
+        activitiesPdf: null,
       });
     }
   }, [course]);
@@ -57,31 +54,46 @@ export function EditCourseModal({
       try {
         setUploading(true);
 
-        // Prepare form data including files
-        const courseData = new FormData();
-        courseData.append("title", formData.title);
-        courseData.append("description", formData.description);
-        courseData.append("video_ref", formData.video_ref);
-        courseData.append("duration", formData.duration);
-        courseData.append("chapter_id", chapterId.toString());
-
-        // Add PDF files if they exist
-        if (formData.pdf_summary) {
-          courseData.append("pdf_summary", formData.pdf_summary);
+        // If there are no PDF files, send as JSON instead of FormData
+        const hasPDFs = (formData.explanationPdf instanceof File) || (formData.activitiesPdf instanceof File);
+        
+        let courseData;
+        if (hasPDFs) {
+          // Use FormData for file uploads
+          courseData = new FormData();
+          courseData.append("title", formData.title);
+          courseData.append("description", formData.description);
+          courseData.append("chapterId", chapterId.toString());
+          
+          // Only add videoLink if it has a value
+          if (formData.videoLink && formData.videoLink.trim()) {
+            courseData.append("videoLink", formData.videoLink);
+          }
+          
+          // Only add PDF files if they are actual File objects
+          if (formData.explanationPdf instanceof File) {
+            courseData.append("explanationPdf", formData.explanationPdf);
+          }
+          if (formData.activitiesPdf instanceof File) {
+            courseData.append("activitiesPdf", formData.activitiesPdf);
+          }
+        } else {
+          // Use plain JSON object (no files)
+          courseData = {
+            title: formData.title,
+            description: formData.description,
+            chapterId: chapterId
+          };
+          
+          // Only add videoLink if it has a value
+          if (formData.videoLink && formData.videoLink.trim()) {
+            courseData.videoLink = formData.videoLink;
+          }
         }
-        if (formData.exercises_pdf) {
-          courseData.append("exercises_pdf", formData.exercises_pdf);
-        }
 
-        console.log("Submitting course data:", {
-          title: formData.title,
-          description: formData.description,
-          video_ref: formData.video_ref,
-          duration: formData.duration,
-          chapter_id: chapterId,
-          has_pdf_summary: !!formData.pdf_summary,
-          has_exercises_pdf: !!formData.exercises_pdf,
-        });
+        console.log("Submitting course data:", courseData);
+        console.log("Has PDFs:", hasPDFs);
+        console.log("Is FormData:", courseData instanceof FormData);
 
         const response = await onSave(courseData);
         console.log("Saved course response (raw):", response);
@@ -114,12 +126,12 @@ export function EditCourseModal({
 
   const handleSummaryFileChange = (e) => {
     const file = e.target.files?.[0] || null;
-    setFormData({ ...formData, pdf_summary: file });
+    setFormData({ ...formData, explanationPdf: file });
   };
 
   const handleExercisesFileChange = (e) => {
     const file = e.target.files?.[0] || null;
-    setFormData({ ...formData, exercises_pdf: file });
+    setFormData({ ...formData, activitiesPdf: file });
   };
 
   const removeFile = (type) => {
@@ -180,18 +192,18 @@ export function EditCourseModal({
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="video_ref" className="text-right">
-                رابط الفيديو
+              <Label htmlFor="videoLink" className="text-right">
+                رابط الفيديو (اختياري)
               </Label>
               <Input
-                id="video_ref"
-                value={formData.video_ref}
+                id="videoLink"
+                type="url"
+                value={formData.videoLink}
                 onChange={(e) =>
-                  setFormData({ ...formData, video_ref: e.target.value })
+                  setFormData({ ...formData, videoLink: e.target.value })
                 }
                 className="col-span-3 text-right"
-                placeholder="أدخل رابط الفيديو"
-                required
+                placeholder="https://youtube.com/watch?v=..."
               />
             </div>
 

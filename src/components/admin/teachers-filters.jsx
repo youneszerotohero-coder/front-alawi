@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, X } from "lucide-react";
 
-export function StudentsFilters({ onSearchChange, onClearFilters }) {
+export function TeachersFilters({ onSearchChange, onClearFilters }) {
   const [search, setSearch] = useState("");
 
   const handleSearch = useCallback(() => {

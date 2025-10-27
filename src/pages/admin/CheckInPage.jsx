@@ -1,5 +1,4 @@
 import { StudentIdInput } from "@/components/admin/student-id-input";
-import { CheckInStats } from "@/components/admin/checkin-stats";
 
 export default function AdminCheckInPage() {
   return (
@@ -15,13 +14,8 @@ export default function AdminCheckInPage() {
         </div>
       </div>
 
-      {/* Check-in Stats */}
-      <div className="mb-6">
-        <CheckInStats />
-      </div>
-
       {/* Student ID Input Section */}
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <StudentIdInput />
       </div>
     </div>

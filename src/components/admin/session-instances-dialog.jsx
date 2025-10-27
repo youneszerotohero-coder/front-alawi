@@ -153,11 +153,12 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
   if (!session) return null;
 
   // Calculate totals
-  const totalRevenue = instances.reduce((sum, instance) => sum + instance.revenue, 0);
-  const totalTeacherShare = instances.reduce((sum, instance) => sum + instance.teacher_share, 0);
-  const totalSchoolShare = instances.reduce((sum, instance) => sum + instance.school_share, 0);
-  const totalAttendance = instances.reduce((sum, instance) => sum + instance.attendance_count, 0);
-  const totalStudents = instances.reduce((sum, instance) => sum + instance.total_students, 0);
+  const instancesArray = Array.isArray(instances) ? instances : [];
+  const totalRevenue = instancesArray.reduce((sum, instance) => sum + (instance.revenue || 0), 0);
+  const totalTeacherShare = instancesArray.reduce((sum, instance) => sum + (instance.teacher_share || 0), 0);
+  const totalSchoolShare = instancesArray.reduce((sum, instance) => sum + (instance.school_share || 0), 0);
+  const totalAttendance = instancesArray.reduce((sum, instance) => sum + (instance.attendance_count || 0), 0);
+  const totalStudents = instancesArray.reduce((sum, instance) => sum + (instance.total_students || 0), 0);
   const averageAttendanceRate = totalStudents > 0 ? (totalAttendance / totalStudents) * 100 : 0;
 
   return (
@@ -342,7 +343,7 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
                 </div>
               )}
 
-              {!loading && !error && instances.length === 0 && (
+              {!loading && !error && instancesArray.length === 0 && (
                 <div className="text-center py-8">
                   <Play className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-600">لا توجد جلسات متاحة</p>
@@ -365,7 +366,7 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {instances.map((instance) => (
+                      {instancesArray.map((instance) => (
                         <TableRow key={instance.id} className="hover:bg-gray-50">
                           <TableCell className="font-medium">
                             {formatDate(instance.date)}
