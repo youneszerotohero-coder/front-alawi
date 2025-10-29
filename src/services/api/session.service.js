@@ -10,33 +10,37 @@ const SESSION_ENDPOINTS = {
 export const sessionService = {
   /**
    * Get all sessions with optional filters
+   * Uses localStorage cache - returns cached data if available, otherwise fetches from API
    */
   async getSessions(filters = {}) {
-    try {
-      const params = {};
+    // Use cache service to check localStorage first
+    return cacheService.getSessions(async () => {
+      try {
+        const params = {};
 
-      if (filters.teacherId) params.teacherId = filters.teacherId;
-      if (filters.middleSchoolGrade) params.middleSchoolGrade = filters.middleSchoolGrade;
-      if (filters.highSchoolGrade) params.highSchoolGrade = filters.highSchoolGrade;
-      if (filters.branch) params.branch = filters.branch;
-      if (filters.status && filters.status !== "null") params.status = filters.status;
-      if (filters.sessionType) params.sessionType = filters.sessionType;
-      if (filters.page) params.page = filters.page;
-      if (filters.limit) params.limit = filters.limit;
+        if (filters.teacherId) params.teacherId = filters.teacherId;
+        if (filters.middleSchoolGrade) params.middleSchoolGrade = filters.middleSchoolGrade;
+        if (filters.highSchoolGrade) params.highSchoolGrade = filters.highSchoolGrade;
+        if (filters.branch) params.branch = filters.branch;
+        if (filters.status && filters.status !== "null") params.status = filters.status;
+        if (filters.sessionType) params.sessionType = filters.sessionType;
+        if (filters.search) params.search = filters.search;
+        if (filters.page) params.page = filters.page;
+        if (filters.limit) params.limit = filters.limit;
 
-      // Note: This endpoint needs to be added to the backend
-      const response = await api.get(SESSION_ENDPOINTS.SESSIONS, { params });
-      
-      // Express backend returns { success: true, data: [...], pagination: {...} }
-      return {
-        data: response.data.data || [],
-        pagination: response.data.pagination || { page: 1, limit: 10, total: 0 },
-      };
-    } catch (error) {
-      console.error("Error fetching sessions:", error);
-      // Return empty data if endpoint doesn't exist yet
-      return { data: [], pagination: { page: 1, limit: 10, total: 0 } };
-    }
+        const response = await api.get(SESSION_ENDPOINTS.SESSIONS, { params });
+        
+        // Express backend returns { success: true, data: [...], pagination: {...} }
+        return {
+          data: response.data.data || [],
+          pagination: response.data.pagination || { page: 1, limit: 10, total: 0 },
+        };
+      } catch (error) {
+        console.error("Error fetching sessions:", error);
+        // Return empty data if endpoint doesn't exist yet
+        return { data: [], pagination: { page: 1, limit: 10, total: 0 } };
+      }
+    }, filters);
   },
 
   /**
@@ -86,11 +90,16 @@ export const sessionService = {
 
   /**
    * Create a new session
+   * Invalidates sessions cache after successful creation
    */
   async createSession(sessionData) {
     try {
       const response = await api.post(SESSION_ENDPOINTS.SESSIONS, sessionData);
       // Express backend returns { success: true, data: {...} }
+      
+      // Invalidate cache so next getSessions() call will fetch fresh data
+      cacheService.invalidateSessions();
+      
       return response.data;
     } catch (error) {
       console.error("Error creating session:", error);
@@ -100,6 +109,7 @@ export const sessionService = {
 
   /**
    * Update a session
+   * Invalidates sessions cache after successful update
    */
   async updateSession(sessionId, sessionData) {
     try {
@@ -108,6 +118,10 @@ export const sessionService = {
         sessionData,
       );
       // Express backend returns { success: true, data: {...} }
+      
+      // Invalidate cache so next getSessions() call will fetch fresh data
+      cacheService.invalidateSessions();
+      
       return response.data;
     } catch (error) {
       console.error("Error updating session:", error);
@@ -117,6 +131,7 @@ export const sessionService = {
 
   /**
    * Delete a session
+   * Invalidates sessions cache after successful deletion
    */
   async deleteSession(sessionId) {
     try {
@@ -124,6 +139,10 @@ export const sessionService = {
         `${SESSION_ENDPOINTS.SESSIONS}/${sessionId}`,
       );
       // Express backend returns { success: true, message: "..." }
+      
+      // Invalidate cache so next getSessions() call will fetch fresh data
+      cacheService.invalidateSessions();
+      
       return response.data;
     } catch (error) {
       console.error("Error deleting session:", error);
@@ -162,6 +181,10 @@ export const sessionService = {
     }
 
     // Handle grade levels from year_target (old format)
+    // Clear both school levels first to avoid conflicts
+    data.middleSchoolGrade = null;
+    data.highSchoolGrade = null;
+    
     if (formData.year_target) {
       const yearMap = {
         '1AM': 'GRADE_1',
@@ -176,17 +199,23 @@ export const sessionService = {
       const grade = yearMap[formData.year_target];
       if (formData.year_target.endsWith('AM')) {
         data.middleSchoolGrade = grade;
+        data.highSchoolGrade = null; // Ensure high school is null
       } else if (formData.year_target.endsWith('AS')) {
         data.highSchoolGrade = grade;
+        data.middleSchoolGrade = null; // Ensure middle school is null
       }
     }
 
-    // Handle grade levels (new format)
-    if (formData.middleSchoolGrade) {
-      data.middleSchoolGrade = formData.middleSchoolGrade;
-    }
-    if (formData.highSchoolGrade) {
-      data.highSchoolGrade = formData.highSchoolGrade;
+    // Handle grade levels (new format) - only if year_target is not used
+    if (!formData.year_target) {
+      if (formData.middleSchoolGrade) {
+        data.middleSchoolGrade = formData.middleSchoolGrade;
+        data.highSchoolGrade = null; // Ensure high school is null
+      }
+      if (formData.highSchoolGrade) {
+        data.highSchoolGrade = formData.highSchoolGrade;
+        data.middleSchoolGrade = null; // Ensure middle school is null
+      }
     }
     
     // Handle branch from branch_ids array - take first one

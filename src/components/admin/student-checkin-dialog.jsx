@@ -130,17 +130,45 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
         return { success: false };
       }
 
+      // Validate session data
+      if (!session?.id) {
+        toast.error("معرف الجلسة غير موجود");
+        return { success: false };
+      }
+
+      if (!session?.pricePerSession || session.pricePerSession <= 0) {
+        toast.error("سعر الجلسة غير صحيح");
+        return { success: false };
+      }
+
+      if (!sessionsCount || sessionsCount <= 0) {
+        toast.error("عدد الجلسات غير صحيح");
+        return { success: false };
+      }
+
       // Calculate amount
       const amount = session.pricePerSession * sessionsCount;
 
-      // Create payment
-      const paymentResponse = await paymentService.createPayment({
+      // Validate calculated amount
+      if (isNaN(amount) || amount <= 0) {
+        toast.error("المبلغ المحسوب غير صحيح");
+        return { success: false };
+      }
+
+      // Create payment data with validation
+      const paymentData = {
         sessionId: session.id,
         studentId: studentId,
         amount: amount,
         sessionsCount: sessionsCount,
         paymentMethod: "cash",
-      });
+      };
+
+      // Log payment data for debugging
+      console.log("Payment data being sent:", paymentData);
+
+      // Create payment
+      const paymentResponse = await paymentService.createPayment(paymentData);
 
       if (paymentResponse.success) {
         toast.success(
@@ -234,6 +262,10 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
   };
 
   const handleConfirmationOpenChange = (value) => {
+    // Prevent closing if payment is being processed
+    if (!value && isProcessingConfirmation) {
+      return;
+    }
     setConfirmationOpen(value);
     if (!value) {
       setPaymentConfirmation(null);
@@ -258,23 +290,38 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
   };
 
   const handleConfirmPayment = async (event) => {
-    if (event?.preventDefault) {
+    if (event) {
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
     }
 
-    if (!paymentConfirmation) return;
+    if (!paymentConfirmation) {
+      return;
+    }
+    
+    // Validate amount before proceeding
+    if (!paymentConfirmation.amount || paymentConfirmation.amount <= 0) {
+      toast.error("المبلغ غير صحيح. يرجى التحقق من سعر الجلسة.");
+      return;
+    }
 
     setIsProcessingConfirmation(true);
 
-    const { session, sessionsCount } = paymentConfirmation;
+    try {
+      const { session, sessionsCount } = paymentConfirmation;
 
-    const result = await handlePayment(session, sessionsCount);
+      const result = await handlePayment(session, sessionsCount);
 
-    setIsProcessingConfirmation(false);
-
-    if (result?.success) {
-      setConfirmationOpen(false);
-      setPaymentConfirmation(null);
+      if (result?.success) {
+        setConfirmationOpen(false);
+        setPaymentConfirmation(null);
+      }
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      toast.error("حدث خطأ أثناء تأكيد الدفع");
+    } finally {
+      setIsProcessingConfirmation(false);
     }
   };
 
@@ -527,10 +574,11 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
               <AlertDialogCancel disabled={isProcessingConfirmation}>
                 إلغاء
               </AlertDialogCancel>
-              <AlertDialogAction
+              <Button
                 onClick={handleConfirmPayment}
                 disabled={isProcessingConfirmation}
                 className="bg-green-600 hover:bg-green-700"
+                type="button"
               >
                 {isProcessingConfirmation ? (
                   <span className="flex items-center gap-2">
@@ -540,7 +588,7 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
                 ) : (
                   "تأكيد الدفع"
                 )}
-              </AlertDialogAction>
+              </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

@@ -25,8 +25,11 @@ export function TeachersFilters({ onSearchChange, onClearFilters }) {
   );
 
   const handleInputChange = useCallback((e) => {
-    setSearch(e.target.value);
-  }, []);
+    const value = e.target.value;
+    setSearch(value);
+    // Trigger search automatically as user types
+    onSearchChange(value.trim());
+  }, [onSearchChange]);
 
   return (
     <div className="space-y-4 mb-6" dir="rtl">
@@ -34,7 +37,7 @@ export function TeachersFilters({ onSearchChange, onClearFilters }) {
         <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="البحث بالاسم أو اللقب أو رقم الهاتف... (اضغط Enter للبحث)"
+            placeholder="البحث بالاسم أو اللقب أو رقم الهاتف... (البحث التلقائي)"
             value={search}
             onChange={handleInputChange}
             onKeyPress={handleKeyPress}

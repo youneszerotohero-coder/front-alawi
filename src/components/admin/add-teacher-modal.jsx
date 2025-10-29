@@ -31,25 +31,42 @@ export function AddTeacherModal({ onTeacherCreated }) {
   const [error, setError] = useState(null);
   const { toast } = useToast();
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     phone: "",
-    picture: "",
-    module: "",
-    percent_school: "",
-    price_subscription: "",
-    price_session: "",
-    is_online_publisher: false, // false by default
-    years: [],
+    specialization: [],
+    middleSchoolGrades: [],
+    highSchoolGrades: [],
+    branches: [],
+    percentageShare: 70,
   });
 
-  const YEAR_OPTIONS = [
-    { value: "1AM", label: "السنة الأولى متوسط" },
-    { value: "2AM", label: "السنة الثانية متوسط" },
-    { value: "3AM", label: "السنة الثالثة متوسط" },
-    { value: "4AM", label: "السنة الرابعة متوسط" },
-    { value: "1AS", label: "السنة الأولى ثانوي" },
-    { value: "2AS", label: "السنة الثانية ثانوي" },
-    { value: "3AS", label: "السنة الثالثة ثانوي" },
+  const MIDDLE_SCHOOL_GRADES = [
+    { value: "GRADE_1", label: "السنة الأولى متوسط" },
+    { value: "GRADE_2", label: "السنة الثانية متوسط" },
+    { value: "GRADE_3", label: "السنة الثالثة متوسط" },
+    { value: "GRADE_4", label: "السنة الرابعة متوسط" },
+  ];
+
+  const HIGH_SCHOOL_GRADES = [
+    { value: "GRADE_1", label: "السنة الأولى ثانوي" },
+    { value: "GRADE_2", label: "السنة الثانية ثانوي" },
+    { value: "GRADE_3", label: "السنة الثالثة ثانوي" },
+  ];
+
+  const BRANCH_OPTIONS = [
+    // 1st year High School
+    { value: "SCIENTIFIC", label: "علمي" },
+    { value: "LITERARY", label: "أدبي" },
+    // 2nd and 3rd year High School
+    { value: "LANGUAGES", label: "آداب ولغات" },
+    { value: "PHILOSOPHY", label: "فلسفة" },
+    { value: "ELECTRICAL", label: "كهرباء" },
+    { value: "MECHANICAL", label: "ميكانيك" },
+    { value: "CIVIL", label: "مدني" },
+    { value: "INDUSTRIAL", label: "صناعي" },
+    { value: "MATHEMATIC", label: "رياضيات" },
+    { value: "GESTION", label: "تسيير" },
   ];
 
   const MODULE_OPTIONS = [
@@ -68,27 +85,26 @@ export function AddTeacherModal({ onTeacherCreated }) {
 
   const resetForm = () => {
     setFormData({
-      name: "",
+      firstName: "",
+      lastName: "",
       phone: "",
-      picture: "",
-      module: "",
-      percent_school: "",
-      price_subscription: "",
-      price_session: "",
-      is_online_publisher: false,
-      years: [],
+      specialization: [],
+      middleSchoolGrades: [],
+      highSchoolGrades: [],
+      branches: [],
+      percentageShare: 70,
     });
     setError(null);
   };
 
-  const toggleYear = (year) => {
+  const toggleArrayField = (field, value) => {
     setFormData((prev) => {
-      const exists = prev.years.includes(year);
+      const exists = prev[field].includes(value);
       return {
         ...prev,
-        years: exists
-          ? prev.years.filter((y) => y !== year)
-          : [...prev.years, year],
+        [field]: exists
+          ? prev[field].filter((item) => item !== value)
+          : [...prev[field], value],
       };
     });
   };
@@ -98,23 +114,16 @@ export function AddTeacherModal({ onTeacherCreated }) {
     setSubmitting(true);
     setError(null);
     try {
-      // Build payload per backend teacher model
+      // Build payload per backend teacher model schema
       const payload = {
-        name: formData.name.trim(),
-        phone: formData.phone.trim(),
-        picture: formData.picture || null,
-        module: formData.module || null,
-        percent_school: formData.percent_school
-          ? parseInt(formData.percent_school, 10)
-          : null,
-        price_subscription: formData.price_subscription
-          ? parseFloat(formData.price_subscription)
-          : null,
-        price_session: formData.price_session
-          ? parseFloat(formData.price_session)
-          : null,
-        is_online_publisher: !!formData.is_online_publisher,
-        years: formData.years,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        phone: formData.phone.trim() || null,
+        specialization: formData.specialization,
+        middleSchoolGrades: formData.middleSchoolGrades,
+        highSchoolGrades: formData.highSchoolGrades,
+        branches: formData.branches,
+        percentageShare: formData.percentageShare,
       };
       await teachersService.createTeacher(payload);
 
@@ -126,7 +135,7 @@ export function AddTeacherModal({ onTeacherCreated }) {
       // Show success message
       toast({
         title: "تم إضافة الأستاذ بنجاح",
-        description: `تم إنشاء حساب للأستاذ ${payload.name}`,
+        description: `تم إنشاء حساب للأستاذ ${payload.firstName} ${payload.lastName}`,
       });
 
       resetForm();
@@ -154,35 +163,48 @@ export function AddTeacherModal({ onTeacherCreated }) {
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto"
+        className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"
         dir="rtl"
       >
         <DialogHeader>
           <DialogTitle>إضافة أستاذ جديد</DialogTitle>
           <DialogDescription>
-            إدخال معلومات الأستاذ حسب الحقول المتاحة.
+            إدخال معلومات الأستاذ الجديد مع التخصصات والمراحل والفروع الدراسية.
           </DialogDescription>
         </DialogHeader>
         {error && <div className="text-red-600 text-sm mb-3">{error}</div>}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-3">
-            <div className="grid gap-2">
-              <Label htmlFor="name">الاسم الكامل</Label>
-              <Input
-                id="name"
-                required
-                placeholder="مثال: محمد علي"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-              />
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="firstName">الاسم الأول *</Label>
+                <Input
+                  id="firstName"
+                  required
+                  placeholder="مثال: محمد"
+                  value={formData.firstName}
+                  onChange={(e) =>
+                    setFormData({ ...formData, firstName: e.target.value })
+                  }
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="lastName">اسم العائلة *</Label>
+                <Input
+                  id="lastName"
+                  required
+                  placeholder="مثال: علي"
+                  value={formData.lastName}
+                  onChange={(e) =>
+                    setFormData({ ...formData, lastName: e.target.value })
+                  }
+                />
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="phone">رقم الهاتف</Label>
               <Input
                 id="phone"
-                required
                 type="tel"
                 placeholder="05XXXXXXXX"
                 value={formData.phone}
@@ -192,113 +214,86 @@ export function AddTeacherModal({ onTeacherCreated }) {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="picture">رابط الصورة (اختياري)</Label>
-              <Input
-                id="picture"
-                type="url"
-                placeholder="https://..."
-                value={formData.picture}
-                onChange={(e) =>
-                  setFormData({ ...formData, picture: e.target.value })
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>المادة</Label>
-              <Select
-                value={formData.module}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, module: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="اختر المادة" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MODULE_OPTIONS.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
-                      {m.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>السنوات الدراسية</Label>
+              <Label>التخصصات</Label>
               <div className="grid grid-cols-2 gap-2">
-                {YEAR_OPTIONS.map((y) => (
+                {MODULE_OPTIONS.map((m) => (
                   <label
-                    key={y.value}
+                    key={m.value}
                     className="flex items-center gap-2 text-sm bg-gray-50 rounded px-2 py-1 border"
                   >
                     <Checkbox
-                      checked={formData.years.includes(y.value)}
-                      onCheckedChange={() => toggleYear(y.value)}
+                      checked={formData.specialization.includes(m.value)}
+                      onCheckedChange={() => toggleArrayField('specialization', m.value)}
                     />
-                    <span>{y.label}</span>
+                    <span>{m.label}</span>
                   </label>
                 ))}
               </div>
             </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="price_subscription">
-                  سعر الاشتراك الشهري (دج)
-                </Label>
-                <Input
-                  id="price_subscription"
-                  type="number"
-                  min="0"
-                  placeholder="مثال: 1500"
-                  value={formData.price_subscription}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      price_subscription: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="price_session">سعر الحصة (دج)</Label>
-                <Input
-                  id="price_session"
-                  type="number"
-                  min="0"
-                  placeholder="مثال: 400"
-                  value={formData.price_session}
-                  onChange={(e) =>
-                    setFormData({ ...formData, price_session: e.target.value })
-                  }
-                />
+            <div className="grid gap-2">
+              <Label>المراحل المتوسطة</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {MIDDLE_SCHOOL_GRADES.map((grade) => (
+                  <label
+                    key={grade.value}
+                    className="flex items-center gap-2 text-sm bg-gray-50 rounded px-2 py-1 border"
+                  >
+                    <Checkbox
+                      checked={formData.middleSchoolGrades.includes(grade.value)}
+                      onCheckedChange={() => toggleArrayField('middleSchoolGrades', grade.value)}
+                    />
+                    <span>{grade.label}</span>
+                  </label>
+                ))}
               </div>
             </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="percent_school">نسبة المدرسة (%)</Label>
-                <Input
-                  id="percent_school"
-                  type="number"
-                  min="0"
-                  max="100"
-                  placeholder="مثال: 30"
-                  value={formData.percent_school}
-                  onChange={(e) =>
-                    setFormData({ ...formData, percent_school: e.target.value })
-                  }
-                />
+            <div className="grid gap-2">
+              <Label>المراحل الثانوية</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {HIGH_SCHOOL_GRADES.map((grade) => (
+                  <label
+                    key={grade.value}
+                    className="flex items-center gap-2 text-sm bg-gray-50 rounded px-2 py-1 border"
+                  >
+                    <Checkbox
+                      checked={formData.highSchoolGrades.includes(grade.value)}
+                      onCheckedChange={() => toggleArrayField('highSchoolGrades', grade.value)}
+                    />
+                    <span>{grade.label}</span>
+                  </label>
+                ))}
               </div>
-              <div className="space-y-2 pt-6">
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={formData.is_online_publisher}
-                    onCheckedChange={(val) =>
-                      setFormData({ ...formData, is_online_publisher: !!val })
-                    }
-                  />
-                  ناشر إلكتروني؟
-                </label>
+            </div>
+            <div className="grid gap-2">
+              <Label>الفروع الدراسية</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {BRANCH_OPTIONS.map((branch) => (
+                  <label
+                    key={branch.value}
+                    className="flex items-center gap-2 text-sm bg-gray-50 rounded px-2 py-1 border"
+                  >
+                    <Checkbox
+                      checked={formData.branches.includes(branch.value)}
+                      onCheckedChange={() => toggleArrayField('branches', branch.value)}
+                    />
+                    <span>{branch.label}</span>
+                  </label>
+                ))}
               </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="percentageShare">نسبة المدرسة (%)</Label>
+              <Input
+                id="percentageShare"
+                type="number"
+                min="0"
+                max="100"
+                placeholder="مثال: 70"
+                value={formData.percentageShare}
+                onChange={(e) =>
+                  setFormData({ ...formData, percentageShare: parseFloat(e.target.value) || 70 })
+                }
+              />
             </div>
           </div>
           <DialogFooter className="flex gap-3">

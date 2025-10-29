@@ -86,16 +86,12 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
 
       console.log("📡 Fetching sessions with filters:", filters);
       
-      // ⚡ Use cache service for sessions
-      const response = await cacheService.getSessions(
-        async () =>
-          await sessionService.getSessions({
-            ...filters,
-            search: searchQuery,
-            page: currentPage,
-          }),
-        { ...filters, search: searchQuery, page: currentPage },
-      );
+      // Cache is now handled inside sessionService.getSessions
+      const response = await sessionService.getSessions({
+        ...filters,
+        search: searchQuery,
+        page: currentPage,
+      });
 
       console.log("📥 Sessions response:", response);
 
@@ -165,7 +161,8 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
       setInstancesLoading(true);
       const response = await sessionService.getSession(sessionId);
       if (response && response.data) {
-        setSessionInstances(response.data.instances || []);
+        // Backend returns sessionInstances, not instances
+        setSessionInstances(response.data.sessionInstances || []);
       }
     } catch (error) {
       console.error("Error fetching session instances:", error);
@@ -462,7 +459,8 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
                         <DropdownMenuItem
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSessionToEdit(session);
                             setEditDialogOpen(true);
                           }}
@@ -670,32 +668,32 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
                     {sessionInstances.map((instance, index) => (
                       <TableRow key={instance.id || index}>
                         <TableCell className="text-right">
-                          {formatDate(instance.date || instance.created_at)}
+                          {formatDate(instance.dateTime)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {formatTime(instance.start_time || instance.created_at)}
+                          {formatTime(instance.dateTime)}
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge 
                             variant={
-                              instance.status === "completed" ? "default" :
-                              instance.status === "cancelled" ? "destructive" :
+                              instance.status === "COMPLETED" ? "default" :
+                              instance.status === "CANCELLED" ? "destructive" :
                               "secondary"
                             }
                           >
-                            {instance.status === "completed" ? "مكتملة" :
-                             instance.status === "cancelled" ? "ملغية" :
+                            {instance.status === "COMPLETED" ? "مكتملة" :
+                             instance.status === "CANCELLED" ? "ملغية" :
                              "مجدولة"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Users className="h-4 w-4 text-muted-foreground" />
-                            <span>{instance.attendance_count || 0}</span>
+                            <span>{instance._count?.attendances || 0}</span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          {instance.notes || instance.cancel_reason || "لا توجد ملاحظات"}
+                          -
                         </TableCell>
                       </TableRow>
                     ))}
