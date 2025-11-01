@@ -62,16 +62,17 @@ const StudentCoursePage = () => {
     try {
       let filePath;
       if (pdfType === 'summary' && courseData?.explanationPdf) {
-        filePath = `explanation/${courseData.explanationPdf}`;
+        filePath = courseData.explanationPdf;
       } else if (pdfType === 'exercises' && courseData?.activitiesPdf) {
-        filePath = `activities/${courseData.activitiesPdf}`;
+        filePath = courseData.activitiesPdf;
       } else {
         return;
       }
       
-      // Construct the full URL from the environment or use the file path directly
-      // Note: You may need to adjust this based on your actual file serving setup
-      const fileUrl = `/api/v1/files/${filePath}`;
+      // Static files are served directly from backend at http://localhost:3000/uploads/...
+      // In production, use VITE_BACKEND_URL if set, otherwise default to localhost:3000
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const fileUrl = `${backendUrl}/${filePath}`;
       window.open(fileUrl, '_blank');
     } catch (error) {
       console.error('Error downloading PDF:', error);
@@ -198,24 +199,15 @@ const StudentCoursePage = () => {
                 )}
               </div>
 
-              {/* PDF Viewer Placeholder */}
+              {/* PDF Viewer */}
               {courseData.explanationPdf ? (
-                <div className="bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 h-96 flex items-center justify-center">
-                  <div className="text-center">
-                    <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h4 className="text-lg font-medium text-gray-600 mb-2">
-                      ملخص الدرس
-                    </h4>
-                    <p className="text-gray-500 mb-4">
-                      اضغط على تحميل PDF لعرض الملف
-                    </p>
-                    <button 
-                      onClick={() => handleDownloadPdf('summary')}
-                      className="bg-gradient-to-r from-red-400 to-pink-500 text-white px-6 py-2 rounded-lg hover:from-red-500 hover:to-pink-600 transition-colors duration-200"
-                    >
-                      تحميل PDF
-                    </button>
-                  </div>
+                <div className="bg-white rounded-lg border border-gray-300 overflow-hidden" style={{ height: '800px' }}>
+                  <iframe
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/${courseData.explanationPdf}`}
+                    className="w-full h-full"
+                    title="ملخص الدرس"
+                    style={{ border: 'none' }}
+                  />
                 </div>
               ) : (
                 <div className="bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 h-96 flex items-center justify-center">
@@ -250,24 +242,15 @@ const StudentCoursePage = () => {
                 )}
               </div>
 
-              {/* PDF Viewer Placeholder */}
+              {/* PDF Viewer */}
               {courseData.activitiesPdf ? (
-                <div className="bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 h-96 flex items-center justify-center">
-                  <div className="text-center">
-                    <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h4 className="text-lg font-medium text-gray-600 mb-2">
-                      تمارين الدرس
-                    </h4>
-                    <p className="text-gray-500 mb-4">
-                      اضغط على تحميل PDF لعرض التمارين
-                    </p>
-                    <button 
-                      onClick={() => handleDownloadPdf('exercises')}
-                      className="bg-gradient-to-r from-red-400 to-pink-500 text-white px-6 py-2 rounded-lg hover:from-red-500 hover:to-pink-600 transition-colors duration-200"
-                    >
-                      تحميل PDF
-                    </button>
-                  </div>
+                <div className="bg-white rounded-lg border border-gray-300 overflow-hidden" style={{ height: '800px' }}>
+                  <iframe
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/${courseData.activitiesPdf}`}
+                    className="w-full h-full"
+                    title="تمارين الدرس"
+                    style={{ border: 'none' }}
+                  />
                 </div>
               ) : (
                 <div className="bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 h-96 flex items-center justify-center">

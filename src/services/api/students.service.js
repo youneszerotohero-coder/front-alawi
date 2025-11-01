@@ -55,11 +55,26 @@ const studentsService = {
   // Update student
   async updateStudent(id, studentData) {
     try {
-      const response = await api.patch(`/students/${id}`, studentData);
+      const response = await api.patch(`/students/${id}`, studentData, {
+        headers: studentData instanceof FormData ? { "Content-Type": "multipart/form-data" } : undefined,
+      });
       // Express backend returns { success: true, data: {...} }
       return response.data;
     } catch (error) {
       console.error("Error updating student:", error);
+      throw error;
+    }
+  },
+
+  // Update student by userId (self-service)
+  async updateStudentByUserId(userId, data) {
+    try {
+      const response = await api.patch(`/students/by-user/${userId}`, data, {
+        headers: data instanceof FormData ? { "Content-Type": "multipart/form-data" } : undefined,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error updating student by userId:", error);
       throw error;
     }
   },
@@ -76,16 +91,6 @@ const studentsService = {
     }
   },
 
-  // Update student
-  async updateStudent(id, studentData) {
-    try {
-      const response = await api.patch(`/students/${id}`, studentData);
-      return response.data;
-    } catch (error) {
-      console.error("Error updating student:", error);
-      throw error;
-    }
-  },
 
   // Toggle free subscriber status
   async toggleFreeSubscriber(id, hasFreeSubscription) {

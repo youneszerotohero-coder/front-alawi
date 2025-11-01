@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import AuthService from "../../services/api/auth.service";
-import branchesService from "../../services/api/branches.service";
+import studentsService from "../../services/api/students.service";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,26 +44,96 @@ export default function StudentSettingsPage() {
   const [availableBranches, setAvailableBranches] = useState([]);
   const [loadingBranches, setLoadingBranches] = useState(false);
 
+  // Helper function to convert grade enums to year_of_study format
+  const gradeToYearOfStudy = (middleSchoolGrade, highSchoolGrade) => {
+    if (middleSchoolGrade) {
+      const gradeMap = {
+        'GRADE_1': '1AM',
+        'GRADE_2': '2AM',
+        'GRADE_3': '3AM',
+        'GRADE_4': '4AM',
+      };
+      return gradeMap[middleSchoolGrade] || '';
+    }
+    if (highSchoolGrade) {
+      const gradeMap = {
+        'GRADE_1': '1AS',
+        'GRADE_2': '2AS',
+        'GRADE_3': '3AS',
+      };
+      return gradeMap[highSchoolGrade] || '';
+    }
+    return '';
+  };
+
+  // Helper function to convert year_of_study to grade enums
+  const yearOfStudyToGrades = (yearOfStudy) => {
+    if (!yearOfStudy) return { middleSchoolGrade: null, highSchoolGrade: null };
+    
+    if (yearOfStudy.endsWith('AM')) {
+      const gradeMap = {
+        '1AM': 'GRADE_1',
+        '2AM': 'GRADE_2',
+        '3AM': 'GRADE_3',
+        '4AM': 'GRADE_4',
+      };
+      return { middleSchoolGrade: gradeMap[yearOfStudy] || null, highSchoolGrade: null };
+    }
+    
+    if (yearOfStudy.endsWith('AS')) {
+      const gradeMap = {
+        '1AS': 'GRADE_1',
+        '2AS': 'GRADE_2',
+        '3AS': 'GRADE_3',
+      };
+      return { middleSchoolGrade: null, highSchoolGrade: gradeMap[yearOfStudy] || null };
+    }
+    
+    return { middleSchoolGrade: null, highSchoolGrade: null };
+  };
+
   useEffect(() => {
     const init = async () => {
-      // Refresh profile from backend to get last_profile_update_at
+      // Refresh profile from backend
       try {
         const profile = await AuthService.getProfile();
         if (profile) {
           setUser(profile);
+          // Convert grades to year_of_study format
+          const yearOfStudy = gradeToYearOfStudy(profile.middleSchoolGrade, profile.highSchoolGrade);
+          setForm({
+            firstname: profile.firstname || profile.firstName || "",
+            lastname: profile.lastname || profile.lastName || "",
+            phone: profile.phone || "",
+            birth_date: profile.birth_date || (profile.birthDate ? profile.birthDate.split('T')[0] : "") || "",
+            address: profile.address || "",
+            school_name: profile.school_name || profile.schoolName || "",
+            year_of_study: yearOfStudy || "",
+            branch_id: profile.branch || "",
+          });
+          // compute canModify
+          if (profile.last_profile_update_at || profile.updatedAt) {
+            const last = new Date(profile.last_profile_update_at || profile.updatedAt);
+            const now = new Date();
+            const diffHours = (now - last) / (1000 * 60 * 60);
+            setCanModify(diffHours >= 24);
+          } else {
+            setCanModify(true);
+          }
         }
       } catch {}
       const u = AuthService.getCurrentUser();
-      if (u) {
+      if (u && !user) {
+        const yearOfStudy = gradeToYearOfStudy(u.middleSchoolGrade, u.highSchoolGrade);
         setForm({
-          firstname: u.firstname || "",
-          lastname: u.lastname || "",
+          firstname: u.firstname || u.firstName || "",
+          lastname: u.lastname || u.lastName || "",
           phone: u.phone || "",
-          birth_date: u.birth_date || "",
+          birth_date: u.birth_date || (u.birthDate ? u.birthDate.split('T')[0] : "") || "",
           address: u.address || "",
-          school_name: u.school_name || "",
-          year_of_study: u.year_of_study || "",
-          branch_id: u.branch_id || "",
+          school_name: u.school_name || u.schoolName || "",
+          year_of_study: yearOfStudy || "",
+          branch_id: u.branch || "",
         });
         // compute canModify
         if (u.last_profile_update_at) {
@@ -79,32 +149,42 @@ export default function StudentSettingsPage() {
     init();
   }, []);
 
+  // Static branch options - same as other pages
+  const BRANCH_OPTIONS = {
+    "1AS": [
+      { value: "SCIENTIFIC", label: "علمي" },
+      { value: "LITERARY", label: "أدبي" },
+    ],
+    "2AS": [
+      { value: "LANGUAGES", label: "آداب ولغات" },
+      { value: "PHILOSOPHY", label: "فلسفة" },
+      { value: "ELECTRICAL", label: "كهرباء" },
+      { value: "MECHANICAL", label: "ميكانيك" },
+      { value: "CIVIL", label: "مدني" },
+      { value: "INDUSTRIAL", label: "صناعي" },
+      { value: "MATHEMATIC", label: "رياضيات" },
+      { value: "GESTION", label: "تسيير" },
+    ],
+    "3AS": [
+      { value: "LANGUAGES", label: "آداب ولغات" },
+      { value: "PHILOSOPHY", label: "فلسفة" },
+      { value: "ELECTRICAL", label: "كهرباء" },
+      { value: "MECHANICAL", label: "ميكانيك" },
+      { value: "CIVIL", label: "مدني" },
+      { value: "INDUSTRIAL", label: "صناعي" },
+      { value: "MATHEMATIC", label: "رياضيات" },
+      { value: "GESTION", label: "تسيير" },
+    ],
+  };
+
   // Load branches when year changes
   useEffect(() => {
-    const loadBranches = async () => {
-      if (
-        form.year_of_study &&
-        ["1AS", "2AS", "3AS"].includes(form.year_of_study)
-      ) {
-        setLoadingBranches(true);
-        try {
-          const response = await branchesService.getBranchesForYear(
-            form.year_of_study,
-          );
-          setAvailableBranches(response.data || []);
-        } catch (error) {
-          console.error("Error loading branches:", error);
-          setAvailableBranches([]);
-        } finally {
-          setLoadingBranches(false);
-        }
-      } else {
-        setAvailableBranches([]);
-        setForm((prev) => ({ ...prev, branch_id: "" }));
-      }
-    };
-
-    loadBranches();
+    if (form.year_of_study && ["1AS", "2AS", "3AS"].includes(form.year_of_study)) {
+      const branches = BRANCH_OPTIONS[form.year_of_study] || [];
+      setAvailableBranches(branches);
+    } else {
+      setAvailableBranches([]);
+    }
   }, [form.year_of_study]);
 
   const handleChange = (e) => {
@@ -123,73 +203,87 @@ export default function StudentSettingsPage() {
 
   const submitProfile = async (e) => {
     e.preventDefault();
-    if (!canModify) {
-      setError("لقد قمت بتعديل المعلومات اليوم، الرجاء المحاولة غداً");
-      return;
-    }
     setLoading(true);
     setError(null);
     setSuccess(null);
     try {
-      // Build multipart if picture is changing
       const fd = new FormData();
 
-      // Liste des champs autorisés (SANS picture)
-      const allowedFields = [
-        "firstname",
-        "lastname",
-        "phone",
-        "birth_date",
-        "address",
-        "school_name",
-        "year_of_study",
-        "branch_id",
-      ];
+      // Map UI fields to backend fields
+      const firstName = form.firstname?.trim() || "";
+      const lastName = form.lastname?.trim() || "";
+      const phone = form.phone?.trim() || "";
+      const birthDate = form.birth_date ? new Date(form.birth_date).toISOString() : "";
+      const address = form.address || "";
+      const schoolName = form.school_name || "";
 
-      // Ajouter uniquement les champs autorisés
-      allowedFields.forEach((field) => {
-        if (form[field]) {
-          // Convertir birth_date au format YYYY-MM-DD si c'est un ISO string
-          if (
-            field === "birth_date" &&
-            typeof form[field] === "string" &&
-            form[field].includes("T")
-          ) {
-            fd.append(field, form[field].split("T")[0]);
-          } else {
-            fd.append(field, form[field]);
-          }
+      if (firstName) fd.append('firstName', firstName);
+      if (lastName) fd.append('lastName', lastName);
+      if (phone) fd.append('phone', phone);
+      if (birthDate) fd.append('birthDate', birthDate);
+      if (address) fd.append('address', address);
+      if (schoolName) fd.append('schoolName', schoolName);
+
+      // Convert year_of_study to grade enums
+      if (form.year_of_study) {
+        const { middleSchoolGrade, highSchoolGrade } = yearOfStudyToGrades(form.year_of_study);
+        if (middleSchoolGrade) {
+          fd.append('middleSchoolGrade', middleSchoolGrade);
         }
-      });
-
-      // Ajouter le fichier picture si sélectionné
-      if (pictureFile && pictureFile instanceof File) {
-        fd.append("picture", pictureFile);
+        if (highSchoolGrade) {
+          fd.append('highSchoolGrade', highSchoolGrade);
+        }
       }
 
-      // No password required for profile modification (removed for UX)
-      const updated = await AuthService.updateProfile(fd);
+      // Add branch if year is high school
+      if (form.branch_id && ["1AS", "2AS", "3AS"].includes(form.year_of_study)) {
+        fd.append('branch', form.branch_id);
+      }
+
+      if (pictureFile && pictureFile instanceof File) {
+        fd.append('profilePic', pictureFile);
+      }
+
+      const current = AuthService.getCurrentUser();
+      const userId = current?.userId || current?.id;
+      if (!userId) throw new Error('User not identified');
+
+      const response = await studentsService.updateStudentByUserId(userId, fd);
+      const updated = response?.data;
+
       if (updated) {
-        setUser(updated);
-        // Update the form with the new values including the picture URL
-        setForm({
-          firstname: updated.firstname || "",
-          lastname: updated.lastname || "",
-          phone: updated.phone || "",
-          birth_date: updated.birth_date || "",
-          address: updated.address || "",
-          school_name: updated.school_name || "",
-          year_of_study: updated.year_of_study || "",
-          branch_id: updated.branch_id || "",
-        });
-        // Clear the picture file input
+        // Merge updated student fields back into local user cache
+        const newUser = {
+          ...(AuthService.getCurrentUser() || {}),
+          firstName: updated.firstName ?? firstName ?? '',
+          lastName: updated.lastName ?? lastName ?? '',
+          phone: updated.phone ?? phone ?? '',
+          birthDate: updated.birthDate ?? birthDate ?? null,
+          address: updated.address ?? address ?? '',
+          schoolName: updated.schoolName ?? schoolName ?? '',
+          profilePicPath: updated.profilePicPath || undefined,
+          middleSchoolGrade: updated.middleSchoolGrade || null,
+          highSchoolGrade: updated.highSchoolGrade || null,
+          branch: updated.branch || null,
+        };
+
+        localStorage.setItem('user', JSON.stringify(newUser));
+        setUser(newUser);
+        
+        const yearOfStudy = gradeToYearOfStudy(updated.middleSchoolGrade, updated.highSchoolGrade);
+        setForm((prev) => ({
+          ...prev,
+          firstname: newUser.firstName || '',
+          lastname: newUser.lastName || '',
+          phone: newUser.phone || '',
+          birth_date: newUser.birthDate ? newUser.birthDate.split('T')[0] : '',
+          address: newUser.address || '',
+          school_name: newUser.schoolName || '',
+          year_of_study: yearOfStudy,
+          branch_id: newUser.branch || '',
+        }));
         setPictureFile(null);
-        // Trigger a custom event to notify other components (ProfilePage)
-        window.dispatchEvent(
-          new CustomEvent("profileUpdated", { detail: updated }),
-        );
         setSuccess("تم تحديث معلومات الحساب بنجاح");
-        setCanModify(false);
       }
     } catch (err) {
       setError(err.response?.data?.message || "فشل تحديث المعلومات");
@@ -257,13 +351,14 @@ export default function StudentSettingsPage() {
           <CardTitle>تعديل المعلومات الشخصية</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={submitProfile} className="grid gap-4 md:grid-cols-2">
+          <form onSubmit={submitProfile} className="grid gap-3 md:gap-4 md:grid-cols-2">
             <div className="space-y-1">
               <Label>الاسم</Label>
               <Input
                 name="firstname"
                 value={form.firstname}
                 onChange={handleChange}
+                className="h-9 text-sm"
               />
             </div>
             <div className="space-y-1">
@@ -272,11 +367,12 @@ export default function StudentSettingsPage() {
                 name="lastname"
                 value={form.lastname}
                 onChange={handleChange}
+                className="h-9 text-sm"
               />
             </div>
             <div className="space-y-1">
               <Label>الهاتف</Label>
-              <Input name="phone" value={form.phone} onChange={handleChange} />
+              <Input name="phone" value={form.phone} onChange={handleChange} className="h-9 text-sm" />
             </div>
             <div className="space-y-1">
               <Label>تاريخ الميلاد</Label>
@@ -285,6 +381,7 @@ export default function StudentSettingsPage() {
                 name="birth_date"
                 value={form.birth_date}
                 onChange={handleChange}
+                className="h-9 text-sm"
               />
             </div>
             <div className="space-y-1">
@@ -293,6 +390,7 @@ export default function StudentSettingsPage() {
                 name="address"
                 value={form.address}
                 onChange={handleChange}
+                className="h-9 text-sm"
               />
             </div>
             <div className="space-y-1">
@@ -301,15 +399,30 @@ export default function StudentSettingsPage() {
                 name="school_name"
                 value={form.school_name}
                 onChange={handleChange}
+                className="h-9 text-sm"
               />
             </div>
             <div className="space-y-1">
               <Label>السنة الدراسية</Label>
-              <Input
-                name="year_of_study"
+              <Select
                 value={form.year_of_study}
-                onChange={handleChange}
-              />
+                onValueChange={(value) =>
+                  setForm((prev) => ({ ...prev, year_of_study: value, branch_id: "" }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="اختر السنة الدراسية" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1AM">الأولى متوسط</SelectItem>
+                  <SelectItem value="2AM">الثانية متوسط</SelectItem>
+                  <SelectItem value="3AM">الثالثة متوسط</SelectItem>
+                  <SelectItem value="4AM">الرابعة متوسط</SelectItem>
+                  <SelectItem value="1AS">الأولى ثانوي</SelectItem>
+                  <SelectItem value="2AS">الثانية ثانوي</SelectItem>
+                  <SelectItem value="3AS">الثالثة ثانوي</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {/* Branch Selection - Only for High School */}
             {["1AS", "2AS", "3AS"].includes(form.year_of_study) && (
@@ -322,7 +435,7 @@ export default function StudentSettingsPage() {
                   }
                   disabled={loadingBranches}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm">
                     <SelectValue
                       placeholder={
                         loadingBranches
@@ -331,10 +444,10 @@ export default function StudentSettingsPage() {
                       }
                     />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 w-[var(--radix-select-trigger-width)]">
                     {availableBranches.map((branch) => (
-                      <SelectItem key={branch.id} value={branch.id.toString()}>
-                        {branch.name}
+                      <SelectItem key={branch.value} value={branch.value} className="text-sm">
+                        {branch.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -347,10 +460,11 @@ export default function StudentSettingsPage() {
                 type="file"
                 accept="image/*"
                 onChange={(e) => setPictureFile(e.target.files?.[0] || null)}
+                className="text-sm"
               />
             </div>
             <div className="md:col-span-2 flex justify-end">
-              <Button type="submit" disabled={loading || !canModify}>
+              <Button type="submit" disabled={loading || !canModify} className="h-9 px-3 text-sm">
                 {loading ? "جاري الحفظ..." : "حفظ التعديلات"}
               </Button>
             </div>

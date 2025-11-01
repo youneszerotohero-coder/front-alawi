@@ -11,6 +11,10 @@ import {
   GraduationCap,
 } from "lucide-react";
 import authService from "../../services/api/auth.service";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { loginSuccess } from "../../store/slices/authSlice";
 import { useToast } from "../../hooks/use-toast";
 
@@ -379,17 +383,25 @@ const RegisterPage = () => {
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                     <User className="h-5 w-5 text-gray-400" />
                   </div>
-                  <input
-                    id="birth_date"
-                    name="birth_date"
-                    type="date"
-                    required
-                    className={`block w-full pr-10 pl-3 py-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-right placeholder-gray-400 text-gray-900 transition-all duration-200 ${
-                      errors.birth_date ? "border-red-500" : "border-gray-300"
-                    }`}
-                    value={formData.birth_date || ""}
-                    onChange={handleChange}
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="outline" className={`w-full justify-between pr-10 pl-3 py-2 h-9 text-sm ${errors.birth_date ? "border-red-500" : ""}`}>
+                        {formData.birth_date ? new Date(formData.birth_date).toLocaleDateString("ar-DZ") : "اختر تاريخ الميلاد"}
+                        <User className="h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="p-2 w-80 max-w-[90vw]">
+                      <Calendar
+                        mode="single"
+                        selected={formData.birth_date ? new Date(formData.birth_date) : undefined}
+                        onSelect={(date) => {
+                          const iso = date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split("T")[0] : "";
+                          handleChange({ target: { name: "birth_date", value: iso } });
+                        }}
+                        captionLayout="dropdown"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 {errors.birth_date && (
                   <p className="mt-1 text-sm text-red-600 text-right">
@@ -410,12 +422,12 @@ const RegisterPage = () => {
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                     <User className="h-5 w-5 text-gray-400" />
                   </div>
-                  <input
+                <input
                     id="address"
                     name="address"
                     type="text"
                     required
-                    className={`block w-full pr-10 pl-3 py-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-right placeholder-gray-400 text-gray-900 transition-all duration-200 ${
+                  className={`block w-full pr-10 pl-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-right placeholder-gray-400 text-gray-900 transition-all duration-200 ${
                       errors.address ? "border-red-500" : "border-gray-300"
                     }`}
                     placeholder="أدخل عنوانك"
@@ -442,12 +454,12 @@ const RegisterPage = () => {
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                     <GraduationCap className="h-5 w-5 text-gray-400" />
                   </div>
-                  <input
+                <input
                     id="school_name"
                     name="school_name"
                     type="text"
                     required
-                    className={`block w-full pr-10 pl-3 py-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-right placeholder-gray-400 text-gray-900 transition-all duration-200 ${
+                  className={`block w-full pr-10 pl-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-right placeholder-gray-400 text-gray-900 transition-all duration-200 ${
                       errors.school_name ? "border-red-500" : "border-gray-300"
                     }`}
                     placeholder="اسم المدرسة"
@@ -474,26 +486,20 @@ const RegisterPage = () => {
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                     <GraduationCap className="h-5 w-5 text-gray-400" />
                   </div>
-                  <select
-                    id="year_of_study"
-                    name="year_of_study"
-                    required
-                    className={`block w-full pr-10 pl-3 py-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-right text-gray-900 transition-all duration-200 ${
-                      errors.year_of_study
-                        ? "border-red-500"
-                        : "border-gray-300"
-                    }`}
-                    value={formData.year_of_study}
-                    onChange={handleChange}
-                  >
-                    <option value="1AM">السنة الأولى متوسط</option>
-                    <option value="2AM">السنة الثانية متوسط</option>
-                    <option value="3AM">السنة الثالثة متوسط</option>
-                    <option value="4AM">السنة الرابعة متوسط</option>
-                    <option value="1AS">السنة الأولى ثانوي</option>
-                    <option value="2AS">السنة الثانية ثانوي</option>
-                    <option value="3AS">السنة الثالثة ثانوي</option>
-                  </select>
+                  <Select value={formData.year_of_study} onValueChange={(v) => handleChange({ target: { name: "year_of_study", value: v } })}>
+                    <SelectTrigger className={`h-9 text-sm ${errors.year_of_study ? "border-red-500" : ""}`}>
+                      <SelectValue placeholder="اختر السنة الدراسية" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60 w-[var(--radix-select-trigger-width)]">
+                      <SelectItem value="1AM" className="text-sm">السنة الأولى متوسط</SelectItem>
+                      <SelectItem value="2AM" className="text-sm">السنة الثانية متوسط</SelectItem>
+                      <SelectItem value="3AM" className="text-sm">السنة الثالثة متوسط</SelectItem>
+                      <SelectItem value="4AM" className="text-sm">السنة الرابعة متوسط</SelectItem>
+                      <SelectItem value="1AS" className="text-sm">السنة الأولى ثانوي</SelectItem>
+                      <SelectItem value="2AS" className="text-sm">السنة الثانية ثانوي</SelectItem>
+                      <SelectItem value="3AS" className="text-sm">السنة الثالثة ثانوي</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 {errors.year_of_study && (
                   <p className="mt-1 text-sm text-red-600 text-right">
@@ -515,28 +521,18 @@ const RegisterPage = () => {
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                       <BookOpen className="h-5 w-5 text-gray-400" />
                     </div>
-                    <select
-                      id="branch"
-                      name="branch"
-                      required
-                      className={`block w-full pr-10 pl-3 py-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-right text-gray-900 transition-all duration-200 ${
-                        errors.branch ? "border-red-500" : "border-gray-300"
-                      }`}
-                      value={formData.branch || ""}
-                      onChange={handleChange}
-                      disabled={loadingBranches}
-                    >
-                      <option value="">
-                        {loadingBranches
-                          ? "جاري تحميل الفروع..."
-                          : "اختر الفرع الدراسي"}
-                      </option>
-                      {availableBranches.map((branch) => (
-                        <option key={branch.value} value={branch.value}>
-                          {branch.label}
-                        </option>
-                      ))}
-                    </select>
+                    <Select value={formData.branch || ""} onValueChange={(v) => handleChange({ target: { name: "branch", value: v } })} disabled={loadingBranches}>
+                      <SelectTrigger className={`h-9 text-sm ${errors.branch ? "border-red-500" : ""}`}>
+                        <SelectValue placeholder={loadingBranches ? "جاري تحميل الفروع..." : "اختر الفرع الدراسي"} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60 w-[var(--radix-select-trigger-width)]">
+                        {availableBranches.map((branch) => (
+                          <SelectItem key={branch.value} value={branch.value} className="text-sm">
+                            {branch.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   {errors.branch && (
                     <p className="mt-1 text-sm text-red-600 text-right">

@@ -37,10 +37,10 @@ export const teachersService = {
   },
 
   // Mettre à jour un professeur
-  async updateTeacher(uuid, teacherData) {
+  async updateTeacher(id, teacherData) {
     try {
-      const response = await axiosInstance.put(
-        `/teachers/${uuid}`,
+      const response = await axiosInstance.patch(
+        `/teachers/${id}`,
         teacherData,
       );
       return response.data;

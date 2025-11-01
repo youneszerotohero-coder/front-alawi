@@ -71,6 +71,7 @@ export function EditSessionModal({
     date: "",
     time: "",
     duration: "",
+    pricePerSession: "",
   });
   const [availableBranches, setAvailableBranches] = useState([]);
 
@@ -149,6 +150,7 @@ export function EditSessionModal({
         date: date,
         time: time,
         duration: duration,
+        pricePerSession: session.pricePerSession || "",
         repeatDays: session.repeatDays || [], // For repetitive sessions
         startTime: session.startTime || "", // For repetitive sessions
       });
@@ -252,6 +254,16 @@ export function EditSessionModal({
         });
         return;
       }
+    }
+
+    // Validate price per session
+    if (!formData.pricePerSession || parseFloat(formData.pricePerSession) <= 0) {
+      toast({
+        title: "برجاء إدخال سعر صحيح",
+        description: "يجب إدخال سعر الجلسة (يجب أن يكون أكبر من صفر).",
+        variant: "destructive",
+      });
+      return;
     }
 
     setLoading(true);
@@ -516,6 +528,25 @@ export function EditSessionModal({
                   <SelectItem value="3h">3 ساعات</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="pricePerSession" className="text-right">
+                سعر الجلسة (دج) *
+              </Label>
+              <Input
+                id="pricePerSession"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                value={formData.pricePerSession}
+                onChange={(e) =>
+                  setFormData({ ...formData, pricePerSession: e.target.value })
+                }
+                className="col-span-3"
+                required
+              />
             </div>
           </div>
           <DialogFooter>

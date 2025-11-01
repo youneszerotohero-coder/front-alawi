@@ -27,10 +27,10 @@ import {
   UserCheck,
   UserX,
   AlertCircle,
-  TrendingUp,
-  BookOpen,
   Play,
+  TrendingUp,
 } from "lucide-react";
+import { sessionService } from "@/services/api/session.service";
 
 export function SessionInstancesDialog({ session, open, onOpenChange }) {
   const [instances, setInstances] = useState([]);
@@ -49,63 +49,9 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
     setLoading(true);
     setError(null);
     try {
-      // Mock data for now - replace with actual API call
-      const mockInstances = [
-        {
-          id: 1,
-          date: "2024-01-15",
-          start_time: "10:00",
-          end_time: "12:00",
-          status: "مكتملة",
-          attendance_count: 24,
-          total_students: 25,
-          revenue: 1200,
-          teacher_share: 720,
-          school_share: 480,
-          attendance_rate: 96,
-        },
-        {
-          id: 2,
-          date: "2024-01-08",
-          start_time: "10:00",
-          end_time: "12:00",
-          status: "مكتملة",
-          attendance_count: 22,
-          total_students: 25,
-          revenue: 1100,
-          teacher_share: 660,
-          school_share: 440,
-          attendance_rate: 88,
-        },
-        {
-          id: 3,
-          date: "2024-01-01",
-          start_time: "10:00",
-          end_time: "12:00",
-          status: "مكتملة",
-          attendance_count: 25,
-          total_students: 25,
-          revenue: 1250,
-          teacher_share: 750,
-          school_share: 500,
-          attendance_rate: 100,
-        },
-        {
-          id: 4,
-          date: "2023-12-25",
-          start_time: "10:00",
-          end_time: "12:00",
-          status: "ملغية",
-          attendance_count: 0,
-          total_students: 25,
-          revenue: 0,
-          teacher_share: 0,
-          school_share: 0,
-          attendance_rate: 0,
-        },
-      ];
-      
-      setInstances(mockInstances);
+      const resp = await sessionService.getSession(session.id, { limit: 4 });
+      const apiInstances = resp?.data?.sessionInstances || [];
+      setInstances(apiInstances);
     } catch (err) {
       console.error("Error loading session instances:", err);
       setError("تعذر تحميل تفاصيل الجلسة");
@@ -114,23 +60,36 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("ar-DZ");
+  const formatDate = (value) => {
+    try {
+      if (!value) return "غير محدد";
+      const date = new Date(value);
+      if (isNaN(date.getTime())) return "غير محدد";
+      return date.toLocaleDateString("ar-DZ");
+    } catch {
+      return "غير محدد";
+    }
   };
 
-  const formatTime = (timeString) => {
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString("ar-DZ", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const formatTime = (value) => {
+    try {
+      if (!value) return "غير محدد";
+      const date = typeof value === "string" && value.includes("T")
+        ? new Date(value)
+        : new Date(`2000-01-01T${value}`);
+      if (isNaN(date.getTime())) return "غير محدد";
+      return date.toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "غير محدد";
+    }
   };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat("ar-DZ").format(amount) + " دج";
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
+  const getStatusColor = (statusLabel) => {
+    switch (statusLabel) {
       case "مكتملة":
         return "bg-green-100 text-green-800";
       case "جارية":
@@ -144,22 +103,19 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
     }
   };
 
-  const getAttendanceRateColor = (rate) => {
-    if (rate >= 90) return "text-green-600";
-    if (rate >= 70) return "text-yellow-600";
-    return "text-red-600";
+  const statusToArabic = (statusEnum) => {
+    if (!statusEnum) return "مجدولة";
+    if (statusEnum === "COMPLETED") return "مكتملة";
+    if (statusEnum === "CANCELLED") return "ملغية";
+    return "مجدولة";
   };
 
   if (!session) return null;
 
-  // Calculate totals
   const instancesArray = Array.isArray(instances) ? instances : [];
-  const totalRevenue = instancesArray.reduce((sum, instance) => sum + (instance.revenue || 0), 0);
-  const totalTeacherShare = instancesArray.reduce((sum, instance) => sum + (instance.teacher_share || 0), 0);
-  const totalSchoolShare = instancesArray.reduce((sum, instance) => sum + (instance.school_share || 0), 0);
-  const totalAttendance = instancesArray.reduce((sum, instance) => sum + (instance.attendance_count || 0), 0);
-  const totalStudents = instancesArray.reduce((sum, instance) => sum + (instance.total_students || 0), 0);
-  const averageAttendanceRate = totalStudents > 0 ? (totalAttendance / totalStudents) * 100 : 0;
+  const totalRevenue = instancesArray.reduce((sum, it) => sum + (it.revenue || 0), 0);
+  const totalTeacherShare = instancesArray.reduce((sum, it) => sum + (it.teacher_share || 0), 0);
+  const totalSchoolShare = instancesArray.reduce((sum, it) => sum + (it.school_share || 0), 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,19 +147,19 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 mb-2">
-                    {session.module || "غير محدد"}
+                    {session.module || session.title || "غير محدد"}
                   </h3>
                   <div className="flex items-center gap-4 text-sm text-gray-600">
                     <div className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />
-                      <span>{formatDate(session.date)}</span>
+                      <span>{session.dateTime ? formatDate(session.dateTime) : formatDate(session.date)}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
-                      <span>{formatTime(session.start_time)}</span>
+                      <span>{session.dateTime ? formatTime(session.dateTime) : formatTime(session.start_time)}</span>
                     </div>
-                    <Badge className={getStatusColor(session.status)}>
-                      {session.status}
+                    <Badge className={getStatusColor(statusToArabic(session.status))}>
+                      {statusToArabic(session.status)}
                     </Badge>
                   </div>
                 </div>
@@ -223,56 +179,7 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
             </CardHeader>
           </Card>
 
-          {/* Summary Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <DollarSign className="h-5 w-5 text-green-600" />
-                  <h4 className="font-semibold text-green-800">إجمالي الإيرادات</h4>
-                </div>
-                <p className="text-2xl font-bold text-green-700">
-                  {formatCurrency(totalRevenue)}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-5 w-5 text-blue-600" />
-                  <h4 className="font-semibold text-blue-800">إجمالي الحضور</h4>
-                </div>
-                <p className="text-2xl font-bold text-blue-700">
-                  {totalAttendance} / {totalStudents}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="h-5 w-5 text-purple-600" />
-                  <h4 className="font-semibold text-purple-800">معدل الحضور</h4>
-                </div>
-                <p className={`text-2xl font-bold ${getAttendanceRateColor(averageAttendanceRate)}`}>
-                  {averageAttendanceRate.toFixed(1)}%
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Play className="h-5 w-5 text-amber-600" />
-                  <h4 className="font-semibold text-amber-800">عدد الجلسات</h4>
-                </div>
-                <p className="text-2xl font-bold text-amber-700">
-                  {instances.length}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+          {/* Summary Statistics removed per request */}
 
           {/* Revenue Breakdown */}
           <Card>
@@ -359,58 +266,78 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
                         <TableHead className="text-right">الوقت</TableHead>
                         <TableHead className="text-right">الحالة</TableHead>
                         <TableHead className="text-right">الحضور</TableHead>
-                        <TableHead className="text-right">معدل الحضور</TableHead>
                         <TableHead className="text-right">الإيراد</TableHead>
                         <TableHead className="text-right">حصة الأستاذ</TableHead>
                         <TableHead className="text-right">حصة المدرسة</TableHead>
+                        <TableHead className="text-right">الدفع</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {instancesArray.map((instance) => (
-                        <TableRow key={instance.id} className="hover:bg-gray-50">
-                          <TableCell className="font-medium">
-                            {formatDate(instance.date)}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-3 w-3 text-gray-500" />
-                              {formatTime(instance.start_time)} - {formatTime(instance.end_time)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={`text-xs ${getStatusColor(instance.status)}`}>
-                              {instance.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <UserCheck className="h-3 w-3 text-green-500" />
-                              {instance.attendance_count} / {instance.total_students}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className={`font-medium ${getAttendanceRateColor(instance.attendance_rate)}`}>
-                              {instance.attendance_rate}%
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <DollarSign className="h-3 w-3 text-green-500" />
-                              {formatCurrency(instance.revenue)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-green-600 font-medium">
-                              {formatCurrency(instance.teacher_share)}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-blue-600 font-medium">
-                              {formatCurrency(instance.school_share)}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {instancesArray.map((instance) => {
+                        const dateVal = instance.dateTime || instance.date;
+                        const statusLabel = statusToArabic(instance.status);
+                        return (
+                          <TableRow key={instance.id} className="hover:bg-gray-50">
+                            <TableCell className="font-medium">
+                              {formatDate(dateVal)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3 text-gray-500" />
+                                {formatTime(dateVal)}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={`text-xs ${getStatusColor(statusLabel)}`}>
+                                {statusLabel}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <UserCheck className="h-3 w-3 text-green-500" />
+                                {instance._count?.attendances ?? instance.attendance_count ?? 0}
+                              </div>
+                            </TableCell>
+                            
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <DollarSign className="h-3 w-3 text-green-500" />
+                                {formatCurrency(instance.revenue || 0)}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-green-600 font-medium">
+                                {formatCurrency(instance.teacher_share || 0)}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-blue-600 font-medium">
+                                {formatCurrency(instance.school_share || 0)}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              {instance.isPaid ? (
+                                <Badge className="bg-green-100 text-green-800">مدفوع</Badge>
+                              ) : instance.status === 'CANCELLED' ? (
+                                <Button size="sm" variant="outline" disabled>
+                                  ملغية
+                                </Button>
+                              ) : (
+                                <Button size="sm" onClick={async () => {
+                                  try {
+                                    const res = await fetch(`/api/v1/session-instances/${instance.id}/pay`, { method: 'POST', credentials: 'include' });
+                                    if (!res.ok) throw new Error('Failed to mark paid');
+                                    await loadSessionInstances();
+                                  } catch (e) {
+                                    console.error(e);
+                                    alert('تعذر وضع الحالة كمدفوعة');
+                                  }
+                                }}>دفع</Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>

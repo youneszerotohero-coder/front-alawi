@@ -54,11 +54,11 @@ const navigation = [
     href: "/admin/check-in",
     icon: QrCode,
   },
-  {
-    name: "الأحداث",
-    href: "/admin/events",
-    icon: CalendarDays,
-  },
+  // {
+  //   name: "الأحداث",
+  //   href: "/admin/events",
+  //   icon: CalendarDays,
+  // },
 ];
 
 export function AdminSidebar() {

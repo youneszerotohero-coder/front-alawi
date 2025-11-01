@@ -18,7 +18,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Users,
   Calendar,
   Phone,
   BookOpen,
@@ -27,7 +26,6 @@ import {
   Clock,
   Eye,
   Play,
-  UserCheck,
   AlertCircle,
 } from "lucide-react";
 import { sessionService } from "@/services/api/session.service";
@@ -62,15 +60,31 @@ export function TeacherDetailsDialog({ teacher, open, onOpenChange }) {
     }
   };
 
+  // Removed teacher payouts section per request
+
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("ar-DZ");
+    try {
+      if (!dateString) return "غير محدد";
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "غير محدد";
+      return date.toLocaleDateString("ar-DZ");
+    } catch {
+      return "غير محدد";
+    }
   };
 
   const formatTime = (timeString) => {
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString("ar-DZ", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    try {
+      if (!timeString) return "غير محدد";
+      // Accept both ISO dateTime and HH:mm
+      const date = timeString.includes("T")
+        ? new Date(timeString)
+        : new Date(`2000-01-01T${timeString}`);
+      if (isNaN(date.getTime())) return "غير محدد";
+      return date.toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "غير محدد";
+    }
   };
 
   const getSessionStatusColor = (status) => {
@@ -101,6 +115,43 @@ export function TeacherDetailsDialog({ teacher, open, onOpenChange }) {
       default:
         return "bg-gray-100 text-gray-800";
     }
+  };
+
+  const getGradeLabel = (session) => {
+    // Prefer new fields
+    const ms = session.middleSchoolGrade;
+    const hs = session.highSchoolGrade;
+    if (ms) {
+      const map = {
+        GRADE_1: "السنة الأولى متوسط",
+        GRADE_2: "السنة الثانية متوسط",
+        GRADE_3: "السنة الثالثة متوسط",
+        GRADE_4: "السنة الرابعة متوسط",
+      };
+      return map[ms] || `متوسط (${ms})`;
+    }
+    if (hs) {
+      const map = {
+        GRADE_1: "السنة الأولى ثانوي",
+        GRADE_2: "السنة الثانية ثانوي",
+        GRADE_3: "السنة الثالثة ثانوي",
+      };
+      return map[hs] || `ثانوي (${hs})`;
+    }
+    // Legacy year_target fallback
+    if (session.year_target) {
+      const mapLegacy = {
+        '1AM': 'السنة الأولى متوسط',
+        '2AM': 'السنة الثانية متوسط',
+        '3AM': 'السنة الثالثة متوسط',
+        '4AM': 'السنة الرابعة متوسط',
+        '1AS': 'السنة الأولى ثانوي',
+        '2AS': 'السنة الثانية ثانوي',
+        '3AS': 'السنة الثالثة ثانوي',
+      };
+      return mapLegacy[session.year_target] || session.year_target;
+    }
+    return "غير محدد";
   };
 
   if (!teacher) return null;
@@ -201,50 +252,65 @@ export function TeacherDetailsDialog({ teacher, open, onOpenChange }) {
                       <TableRow>
                         <TableHead className="text-right">التاريخ</TableHead>
                         <TableHead className="text-right">الوقت</TableHead>
-                        <TableHead className="text-right">المادة</TableHead>
                         <TableHead className="text-right">النوع</TableHead>
+                        <TableHead className="text-right">السنة</TableHead>
                         <TableHead className="text-right">الحالة</TableHead>
-                        <TableHead className="text-right">الطلاب</TableHead>
                         <TableHead className="text-right">الإجراءات</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sessions.map((session) => (
+                      {sessions.map((session) => {
+                        const isOneTime = session.sessionType === "ONE_TIME";
+                        const dateDisplay = isOneTime
+                          ? formatDate(session.dateTime)
+                          : Array.isArray(session.repeatDays) && session.repeatDays.length > 0
+                            ? session.repeatDays.map((d) => ({
+                                MONDAY: "الإثنين",
+                                TUESDAY: "الثلاثاء",
+                                WEDNESDAY: "الأربعاء",
+                                THURSDAY: "الخميس",
+                                FRIDAY: "الجمعة",
+                                SATURDAY: "السبت",
+                                SUNDAY: "الأحد",
+                              }[d] || d)).join(", ")
+                            : "غير محدد";
+                        const timeDisplay = isOneTime
+                          ? formatTime(session.dateTime)
+                          : formatTime(session.startTime);
+                        const typeDisplay = isOneTime ? "مرة واحدة" : "متكررة";
+                        const statusDisplay = session.status === "COMPLETED"
+                          ? "مكتملة"
+                          : session.status === "CANCELLED"
+                            ? "ملغية"
+                            : "مجدولة";
+                        const gradeDisplay = getGradeLabel(session);
+                        return (
                         <TableRow key={session.id} className="hover:bg-gray-50">
                           <TableCell className="font-medium">
-                            {formatDate(session.date)}
+                            {dateDisplay}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <Clock className="h-3 w-3 text-gray-500" />
-                              {formatTime(session.start_time)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <BookOpen className="h-3 w-3 text-purple-500" />
-                              {session.module || "غير محدد"}
+                              {timeDisplay}
                             </div>
                           </TableCell>
                           <TableCell>
                             <Badge
-                              className={`text-xs ${getSessionTypeColor(session.type)}`}
+                              className={`text-xs ${getSessionTypeColor(typeDisplay)}`}
                             >
-                              {session.type || "غير محدد"}
+                              {typeDisplay}
                             </Badge>
                           </TableCell>
+                            <TableCell>
+                              {gradeDisplay}
+                            </TableCell>
                           <TableCell>
                             <Badge
-                              className={`text-xs ${getSessionStatusColor(session.status)}`}
+                              className={`text-xs ${getSessionStatusColor(statusDisplay)}`}
                             >
-                              {session.status || "غير محدد"}
+                              {statusDisplay}
                             </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Users className="h-3 w-3 text-blue-500" />
-                              {session.students_count || 0}
-                            </div>
                           </TableCell>
                           <TableCell>
                             <Button
@@ -258,7 +324,8 @@ export function TeacherDetailsDialog({ teacher, open, onOpenChange }) {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -276,6 +343,8 @@ export function TeacherDetailsDialog({ teacher, open, onOpenChange }) {
           onOpenChange={(open) => !open && setSelectedSession(null)}
         />
       )}
+
+      {/* Teacher Payouts Section inside the dialog content above sessions list */}
     </Dialog>
   );
 }

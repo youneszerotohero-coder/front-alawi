@@ -69,6 +69,12 @@ const StudentProfilePage = () => {
   const [subsLoading, setSubsLoading] = useState(false);
 
   useEffect(() => {
+    const fetchSubscriptions = async () => {
+      const response = await api.get("/payments/active");
+      const list = response?.data?.data?.subscriptions || [];
+      setSubs(list);
+    };
+    fetchSubscriptions();
     // If we don't have a filled user in localStorage, try to fetch the profile
     const hasFirstName = storedUser?.firstname || storedUser?.firstName;
     const hasLastName = storedUser?.lastname || storedUser?.lastName;
@@ -130,9 +136,9 @@ const StudentProfilePage = () => {
              "غير محدد",
       rawGrade: u.year_of_study || u.middleSchoolGrade || u.highSchoolGrade || "",
       gradeLevel: "student",
-      profilePic: u.picture || u.profilePic || null,
+      profilePic: u.profilePicUrl || (u.profilePicPath ? `/${u.profilePicPath}` : (u.picture || u.profilePic || null)),
       // Generate QR from the user's public UUID if available
-      qrCode: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${u.uuid ? `${u.uuid}` : u.id ? `StudentID-${u.id}` : "unknown"}`,
+      qrCode: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${u.uuid ? `${u.uuid}` : u.id ? `${u.id}` : "unknown"}`,
       idShort: u.uuid
         ? `S-${String(u.uuid).slice(0, 8)}`
         : u.id
@@ -150,53 +156,8 @@ const StudentProfilePage = () => {
     };
   }, [currentUser]);
 
-  useEffect(() => {
-    // fetch active subscriptions when user is ready
-    if (!currentUser?.uuid) {
-      console.debug("⏳ Skipping subscriptions fetch - no user UUID yet");
-      return;
-    }
-
-    // Token is in httpOnly cookie and will be sent automatically
-    const deviceUuid = localStorage.getItem("device_uuid");
-
-    if (!deviceUuid) {
-      console.warn("⚠️ No device UUID available for subscriptions fetch");
-      return;
-    }
-
-    console.debug("🚀 Fetching subscriptions for user:", currentUser.uuid);
-
-    // Debug: vérifier device UUID (token is in httpOnly cookie)
-    console.debug("📱 Device UUID:", deviceUuid || "NONE");
-
-    setSubsLoading(true);
-    api
-      .get("/subscriptions/active")
-      .then((res) => {
-        const list = res?.data?.data?.subscriptions || [];
-        console.debug("✅ Subscriptions loaded:", list.length);
-        setSubs(list);
-      })
-      .catch((e) => {
-        console.warn(
-          "❌ Failed to load active subscriptions:",
-          e.response?.status,
-          e.response?.data,
-        );
-      })
-      .finally(() => setSubsLoading(false));
-  }, [currentUser?.uuid]);
-
   const daysToExpire = (sub) => {
     return typeof sub.days_remaining === "number" ? sub.days_remaining : 0;
-  };
-
-  const cardStyle = (sub) => {
-    const days = daysToExpire(sub);
-    if (days <= 3) return "border-yellow-400 bg-yellow-50";
-    if (sub.is_alouaoui) return "border-amber-500 bg-amber-50";
-    return "border-green-400 bg-green-50";
   };
 
   return (
@@ -317,11 +278,9 @@ const StudentProfilePage = () => {
                   key={sub.id}
                   className={`
                       relative overflow-hidden rounded-2xl p-6 shadow-xl transform transition-all duration-300 hover:scale-105 hover:shadow-2xl
-                      ${
-                        sub.is_alouaoui
+                      ${sub.is_active ? "bg-gradient-to-br from-green-500 via-emerald-600 to-green-700 text-white" : sub.is_alouaoui
                           ? "bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 text-white"
-                          : "bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 text-white"
-                      }
+                          : "bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 text-white"}
                     `}
                 >
                   {/* Effet brillant pour carte Alouaoui */}
@@ -344,18 +303,14 @@ const StudentProfilePage = () => {
                       <div
                         className={`
                           px-3 py-1 rounded-full text-xs font-semibold
-                          ${
-                            sub.is_alouaoui
+                          ${sub.is_active ? "bg-white bg-opacity-20 text-white" : sub.is_alouaoui
                               ? "bg-yellow-900 bg-opacity-30 text-yellow-100"
-                              : "bg-white bg-opacity-20 text-white"
-                          }
+                              : "bg-white bg-opacity-20 text-white"}
                         `}
                       >
-                        {sub.is_alouaoui
+                        {sub.is_active ? "✅ اشتراك نشط" : sub.is_alouaoui
                           ? "🌟 اشتراك شهري"
-                          : sub.is_monthly
-                            ? "📅 اشتراك شهري"
-                            : "🎫 بطاقة حصة"}
+                          : sub.is_monthly ? "📅 اشتراك شهري" : "🎫 بطاقة حصة"}
                       </div>
 
                       {/* Photo du professeur */}

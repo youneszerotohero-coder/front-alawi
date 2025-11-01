@@ -24,13 +24,19 @@ export function CourseDetailsModal({ course, open, onOpenChange }) {
   };
 
   const handleDownloadSummaryPDF = () => {
-    // In a real app, this would trigger PDF download
-    console.log("Downloading Summary PDF:", course.explanationPdf);
+    if (course.explanationPdf) {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const fileUrl = `${backendUrl}/${course.explanationPdf}`;
+      window.open(fileUrl, '_blank');
+    }
   };
 
   const handleDownloadExercisesPDF = () => {
-    // In a real app, this would trigger PDF download
-    console.log("Downloading Exercises PDF:", course.activitiesPdf);
+    if (course.activitiesPdf) {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const fileUrl = `${backendUrl}/${course.activitiesPdf}`;
+      window.open(fileUrl, '_blank');
+    }
   };
 
   return (

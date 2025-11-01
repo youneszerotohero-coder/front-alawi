@@ -36,7 +36,6 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   MoreHorizontal,
   Edit,
-  Users,
   Loader2,
   AlertCircle,
   Ban,
@@ -73,6 +72,13 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
   const [selectedSessionForInstances, setSelectedSessionForInstances] = useState(null);
   const [sessionInstances, setSessionInstances] = useState([]);
   const [instancesLoading, setInstancesLoading] = useState(false);
+  const [instancesPage, setInstancesPage] = useState(1);
+  const [instancesPagination, setInstancesPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+  });
 
   // Fetch sessions when component mounts or filters change
   useEffect(() => {
@@ -156,13 +162,19 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
     }
   };
 
-  const fetchSessionInstances = async (sessionId) => {
+  const fetchSessionInstances = async (sessionId, page = 1) => {
     try {
       setInstancesLoading(true);
-      const response = await sessionService.getSession(sessionId);
+      const response = await sessionService.getSession(sessionId, { page, limit: 5 });
+      console.log("📊 Session instances response:", response);
       if (response && response.data) {
         // Backend returns sessionInstances, not instances
         setSessionInstances(response.data.sessionInstances || []);
+        console.log("📄 Instances:", response.data.sessionInstances?.length || 0);
+        if (response.instancesPagination) {
+          console.log("📖 Pagination:", response.instancesPagination);
+          setInstancesPagination(response.instancesPagination);
+        }
       }
     } catch (error) {
       console.error("Error fetching session instances:", error);
@@ -178,14 +190,29 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
 
   const handleSessionClick = (session) => {
     setSelectedSessionForInstances(session);
+    setInstancesPage(1);
     setInstancesDialogOpen(true);
-    fetchSessionInstances(session.id);
+    fetchSessionInstances(session.id, 1);
   };
 
   const handleInstancesDialogClose = () => {
     setInstancesDialogOpen(false);
     setSelectedSessionForInstances(null);
     setSessionInstances([]);
+    setInstancesPage(1);
+    setInstancesPagination({
+      page: 1,
+      limit: 10,
+      total: 0,
+      totalPages: 1,
+    });
+  };
+
+  const handleInstancesPageChange = (newPage) => {
+    if (selectedSessionForInstances) {
+      setInstancesPage(newPage);
+      fetchSessionInstances(selectedSessionForInstances.id, newPage);
+    }
   };
 
   const handleStatusSubmit = async () => {
@@ -642,7 +669,7 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
               تفاصيل الجلسة - {selectedSessionForInstances?.teacher_name || "غير محدد"}
             </DialogTitle>
             <DialogDescription className="text-right">
-              عرض جميع حالات الجلسة مع تفاصيل الحضور
+              عرض جميع حالات الجلسة
             </DialogDescription>
           </DialogHeader>
           
@@ -653,53 +680,82 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
                 <span className="mr-2">جاري تحميل التفاصيل...</span>
               </div>
             ) : sessionInstances.length > 0 ? (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-right">التاريخ</TableHead>
-                      <TableHead className="text-right">الوقت</TableHead>
-                      <TableHead className="text-right">الحالة</TableHead>
-                      <TableHead className="text-right">عدد الحضور</TableHead>
-                      <TableHead className="text-right">ملاحظات</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sessionInstances.map((instance, index) => (
-                      <TableRow key={instance.id || index}>
-                        <TableCell className="text-right">
-                          {formatDate(instance.dateTime)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatTime(instance.dateTime)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge 
-                            variant={
-                              instance.status === "COMPLETED" ? "default" :
-                              instance.status === "CANCELLED" ? "destructive" :
-                              "secondary"
-                            }
-                          >
-                            {instance.status === "COMPLETED" ? "مكتملة" :
-                             instance.status === "CANCELLED" ? "ملغية" :
-                             "مجدولة"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                            <span>{instance._count?.attendances || 0}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          -
-                        </TableCell>
+              <>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-right">التاريخ</TableHead>
+                        <TableHead className="text-right">الوقت</TableHead>
+                        <TableHead className="text-right">الحالة</TableHead>
+                        <TableHead className="text-right">الحضور</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {sessionInstances.map((instance, index) => (
+                        <TableRow key={instance.id || index}>
+                          <TableCell className="text-right">
+                            {formatDate(instance.dateTime)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatTime(instance.dateTime)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge 
+                              variant={
+                                instance.status === "COMPLETED" ? "default" :
+                                instance.status === "CANCELLED" ? "destructive" :
+                                "secondary"
+                              }
+                            >
+                              {instance.status === "COMPLETED" ? "مكتملة" :
+                               instance.status === "CANCELLED" ? "ملغية" :
+                               "مجدولة"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {instance.attendance_count || 0} طالب
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Pagination for Instances - Always show when there are instances */}
+                {instancesPagination.total > 0 && (
+                  <div className="flex items-center justify-between px-2">
+                    <div className="text-sm text-muted-foreground">
+                      عرض {sessionInstances.length} من {instancesPagination.total} حالة
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm text-muted-foreground">
+                        الصفحة {instancesPagination.page} من {instancesPagination.totalPages}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleInstancesPageChange(instancesPage - 1)}
+                          disabled={instancesPage === 1 || instancesLoading}
+                        >
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                          السابق
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleInstancesPageChange(instancesPage + 1)}
+                          disabled={instancesPage === instancesPagination.totalPages || instancesLoading}
+                        >
+                          التالي
+                          <ChevronLeft className="h-4 w-4 mr-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-8">
                 <p className="text-muted-foreground">لا توجد تفاصيل متاحة لهذه الجلسة</p>

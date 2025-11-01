@@ -9,9 +9,6 @@ import {
   Trash2,
   Phone,
   BookOpen,
-  DollarSign,
-  Calendar,
-  RefreshCcw,
   Clock,
 } from "lucide-react";
 import { teachersService } from "@/services/teachersService";

@@ -73,6 +73,8 @@ export const sessionService = {
 
   /**
    * Get a single session by ID
+   * @param {string} sessionId - Session ID
+   * @param {object} params - Query parameters including pagination (page, limit)
    */
   async getSession(sessionId, params = {}) {
     try {

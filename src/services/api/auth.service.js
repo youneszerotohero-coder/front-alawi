@@ -147,6 +147,7 @@ class AuthService {
           highSchoolGrade: userData.highSchoolGrade,
           branch: userData.branch,
           birthDate: userData.birthDate,
+          profilePicUrl: userData.profilePicUrl,
           schoolName: userData.schoolName,
           address: userData.address,
           hasFreeSubscription: userData.hasFreeSubscription,
@@ -172,6 +173,15 @@ class AuthService {
     try {
       const response = await api.get(`/auth/user-by-phone/${phone}`);
       return response.data.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async changePassword(passwordData) {
+    try {
+      const response = await api.post('/auth/change-password', passwordData);
+      return response.data;
     } catch (error) {
       throw this.handleError(error);
     }

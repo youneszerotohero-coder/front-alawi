@@ -44,6 +44,8 @@ export function AddSessionModal({ onSessionAdded }) {
     duration: "",
     repeatDays: [],
     startTime: "",
+    pricePerSession: "",
+    group: 1,
   });
   const [availableBranches, setAvailableBranches] = useState([]);
   const [loadingBranches, setLoadingBranches] = useState(false);
@@ -66,6 +68,8 @@ export function AddSessionModal({ onSessionAdded }) {
         duration: "",
         repeatDays: [],
         startTime: "",
+        pricePerSession: "",
+        group: 1,
       });
       setAvailableBranches([]);
       setLoadingBranches(false);
@@ -170,6 +174,16 @@ export function AddSessionModal({ onSessionAdded }) {
       return;
     }
 
+    // Validate price per session
+    if (!formData.pricePerSession || parseFloat(formData.pricePerSession) <= 0) {
+      toast({
+        title: "برجاء إدخال سعر الجلسة",
+        description: "يجب إدخال سعر إيجابي للجلسة.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -206,6 +220,8 @@ export function AddSessionModal({ onSessionAdded }) {
         duration: "",
         repeatDays: [],
         startTime: "",
+        pricePerSession: "",
+        group: 1,
       });
       setAvailableBranches([]);
 
@@ -493,6 +509,42 @@ export function AddSessionModal({ onSessionAdded }) {
                   <SelectItem value="3h">3 ساعات</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="pricePerSession" className="text-right">
+                سعر الجلسة (دج) *
+              </Label>
+              <Input
+                id="pricePerSession"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                value={formData.pricePerSession}
+                onChange={(e) =>
+                  setFormData({ ...formData, pricePerSession: e.target.value })
+                }
+                className="col-span-3"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="group" className="text-right">
+                المجموعة
+              </Label>
+              <Input
+                id="group"
+                type="number"
+                min="1"
+                placeholder="1"
+                value={formData.group}
+                onChange={(e) =>
+                  setFormData({ ...formData, group: parseInt(e.target.value, 10) || 1 })
+                }
+                className="col-span-3"
+              />
             </div>
           </div>
           <DialogFooter>
