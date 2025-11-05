@@ -2,6 +2,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { Suspense, lazy, useState, useEffect } from "react";
 import PrivateRoute from "./PrivateRoute";
 import AdminRoute from "./AdminRoute";
+import RequireActivePayment from "./RequireActivePayment";
 import StudentLayout from "../components/common/Layout/StudentLayout";
 import AdminLayout from "../components/common/Layout/AdminLayout";
 
@@ -87,15 +88,27 @@ const router = createBrowserRouter([
       },
       {
         path: "chapters",
-        element: <StudentChaptersPage />,
+        element: (
+          <RequireActivePayment>
+            <StudentChaptersPage />
+          </RequireActivePayment>
+        ),
       },
       {
         path: "courses/:id",
-        element: <StudentCoursePage />,
+        element: (
+          <RequireActivePayment>
+            <StudentCoursePage />
+          </RequireActivePayment>
+        ),
       },
       {
         path: "lives",
-        element: <StudentLivesPage />,
+        element: (
+          <RequireActivePayment>
+            <StudentLivesPage />
+          </RequireActivePayment>
+        ),
       },
       {
         path: "settings",

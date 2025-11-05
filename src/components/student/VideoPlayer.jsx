@@ -14,6 +14,27 @@ const VideoPlayer = ({
   const [duration, setDuration] = useState(0);
   const [showControls, setShowControls] = useState(true);
 
+  // Helper function to get YouTube embed URL
+  const getYouTubeEmbedUrl = (url) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return match && match[2].length === 11 ? `https://www.youtube.com/embed/${match[2]}` : null;
+  };
+
+  // Helper function to get Vimeo embed URL
+  const getVimeoEmbedUrl = (url) => {
+    const regExp = /(?:vimeo)\.com.*(?:videos|video|channels|)\/([\d]+)/i;
+    const match = url.match(regExp);
+    return match ? `https://player.vimeo.com/video/${match[1]}` : null;
+  };
+
+  // Check if video is YouTube or Vimeo
+  const isYouTube = videoSrc && typeof videoSrc === 'string' && (videoSrc.includes('youtube.com') || videoSrc.includes('youtu.be'));
+  const isVimeo = videoSrc && typeof videoSrc === 'string' && videoSrc.includes('vimeo.com');
+  const youtubeEmbedUrl = isYouTube && videoSrc ? getYouTubeEmbedUrl(videoSrc) : null;
+  const vimeoEmbedUrl = isVimeo && videoSrc ? getVimeoEmbedUrl(videoSrc) : null;
+  const isExternalVideo = !!(youtubeEmbedUrl || vimeoEmbedUrl);
+
   // Video player effects
   useEffect(() => {
     const video = videoRef.current;
@@ -74,6 +95,27 @@ const VideoPlayer = ({
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
+  // If it's an external video (YouTube/Vimeo), render iframe
+  if (isExternalVideo) {
+    return (
+      <div
+        ref={containerRef}
+        className="relative w-full max-w-4xl mx-auto bg-black rounded-xl overflow-hidden shadow-2xl"
+      >
+        <div className="w-full aspect-video">
+          <iframe
+            src={youtubeEmbedUrl || vimeoEmbedUrl}
+            className="w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            title={title}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Otherwise, render native video player
   return (
     <div
       ref={containerRef}
@@ -86,7 +128,7 @@ const VideoPlayer = ({
       <video
         ref={videoRef}
         className="w-full aspect-video object-cover scale-[1.03]"
-        src="/video.mp4"
+        src={videoSrc}
         preload="metadata"
         onClick={togglePlay}
         poster={thumbnail}

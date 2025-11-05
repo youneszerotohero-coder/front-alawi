@@ -32,26 +32,20 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* KPI Cards - Now using real data */}
+      {/* KPI Cards - Now using real data with period filter */}
       <DashboardCards period={selectedPeriod} />
 
-      {/* Charts Row - Now using real data */}
+      {/* Charts Row - Always show all data */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mb-6">
         <div className="col-span-4">
           <RevenueChart
-            period={selectedPeriod}
-            days={
-              selectedPeriod === "daily"
-                ? 30
-                : selectedPeriod === "weekly"
-                  ? 12
-                  : 12
-            }
+            period={null}
+            days={365}
           />
         </div>
 
         <div className="col-span-3">
-          <TopTeachersReal limit={5} period={selectedPeriod} />
+          <TopTeachersReal limit={5} period={null} />
         </div>
       </div>
     </div>

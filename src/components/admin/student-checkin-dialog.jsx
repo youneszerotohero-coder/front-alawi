@@ -421,19 +421,22 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
                 )}
                 دفع جلسة ({formatCurrency(session.pricePerSession)})
               </Button>
-              <Button
-                onClick={() => openPaymentConfirmation(session, 4)}
-                disabled={isProcessingPayment}
-                variant="outline"
-                className="border-blue-500 text-blue-600 hover:bg-blue-50"
-              >
-                {isProcessingPayment ? (
-                  <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                ) : (
-                  <Calendar className="h-4 w-4 ml-2" />
-                )}
-                دفع شهري ({formatCurrency(session.pricePerSession * 4)})
-              </Button>
+              {/* Only show monthly payment button for REPETITIVE sessions */}
+              {session.sessionType !== 'ONE_TIME' && (
+                <Button
+                  onClick={() => openPaymentConfirmation(session, 4)}
+                  disabled={isProcessingPayment}
+                  variant="outline"
+                  className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                >
+                  {isProcessingPayment ? (
+                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                  ) : (
+                    <Calendar className="h-4 w-4 ml-2" />
+                  )}
+                  دفع شهري ({formatCurrency(session.pricePerSession * 4)})
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -466,6 +469,23 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Student Photo */}
+              <div className="flex justify-center mb-6">
+                <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-gray-200 shadow-md">
+                  <img
+                    src={
+                      studentData.picture ||
+                      `https://ui-avatars.com/api/?name=${encodeURIComponent(studentData.firstName || "")}+${encodeURIComponent(studentData.lastName || "")}&background=0D8ABC&color=fff&size=200`
+                    }
+                    alt={`${studentData.firstName} ${studentData.lastName}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(studentData.firstName || "")}+${encodeURIComponent(studentData.lastName || "")}&background=0D8ABC&color=fff&size=200`;
+                    }}
+                  />
+                </div>
+              </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-right">
                 <div>
                   <p className="text-sm text-muted-foreground">الاسم الكامل</p>

@@ -5,6 +5,8 @@ import {
   DollarSign,
   Clock,
   TrendingUp,
+  Building2,
+  UserCircle,
 } from "lucide-react";
 import { useDashboardCards } from "@/hooks/useDashboardData";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,8 +17,8 @@ const DashboardCards = ({ period = "daily", date = null }) => {
 
   if (loading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-        {[...Array(4)].map((_, i) => (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
+        {[...Array(6)].map((_, i) => (
           <Card key={i}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <Skeleton className="h-4 w-24" />
@@ -34,7 +36,7 @@ const DashboardCards = ({ period = "daily", date = null }) => {
 
   if (error) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
         <Card className="col-span-full">
           <CardContent className="pt-6">
             <div className="text-center text-red-500">
@@ -53,7 +55,7 @@ const DashboardCards = ({ period = "daily", date = null }) => {
   const cards = data.cards;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
       {/* Total Students */}
       <Card className="bg-pink-50 border-pink-200">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -122,6 +124,42 @@ const DashboardCards = ({ period = "daily", date = null }) => {
           </div>
           <p className="text-xs text-gray-600 text-right">
             <span className="text-pink-500 font-semibold">جلسة</span> في الفترة
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* School Share */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium text-right text-gray-800">
+            حصة المدرسة
+          </CardTitle>
+          <Building2 className="h-4 w-4 text-blue-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-right text-gray-800">
+            {dashboardService.formatCurrency(cards.school_share?.value || 0)}
+          </div>
+          <p className="text-xs text-gray-600 text-right">
+            <span className="text-blue-500 font-semibold">حصة</span> المدرسة
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Teacher Share */}
+      <Card className="bg-green-50 border-green-200">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium text-right text-gray-800">
+            حصة المعلم
+          </CardTitle>
+          <UserCircle className="h-4 w-4 text-green-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-right text-gray-800">
+            {dashboardService.formatCurrency(cards.teacher_share?.value || 0)}
+          </div>
+          <p className="text-xs text-gray-600 text-right">
+            <span className="text-green-500 font-semibold">حصة</span> المعلمين
           </p>
         </CardContent>
       </Card>

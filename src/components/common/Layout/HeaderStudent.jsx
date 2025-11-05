@@ -4,6 +4,7 @@ import { Menu, X, BookOpen, LogOut, Home } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { logout as logoutAction } from "../../../store/slices/authSlice";
 import AuthService from "../../../services/api/auth.service";
+import { useActiveOnlinePayment } from "../../../hooks/useActiveOnlinePayment";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,6 +13,7 @@ const Navbar = () => {
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state) => state.auth);
   const navRef = useRef(null);
+  const { hasActivePayment, loading: paymentLoading } = useActiveOnlinePayment();
 
   // Fermer le menu quand la route change
   useEffect(() => {
@@ -92,20 +94,24 @@ const Navbar = () => {
             >
               الإعدادات
             </Link>
-            <Link
-              to="/student/lives"
-              onClick={handleLinkClick}
-              className="text-gray-700 hover:text-red-500 font-medium transition-colors duration-200"
-            >
-              لايف
-            </Link>
-            <Link
-              to="/student/chapters"
-              onClick={handleLinkClick}
-              className="text-gray-700 hover:text-red-500 font-medium transition-colors duration-200"
-            >
-              الدروس
-            </Link>
+            {!paymentLoading && hasActivePayment && (
+              <>
+                <Link
+                  to="/student/lives"
+                  onClick={handleLinkClick}
+                  className="text-gray-700 hover:text-red-500 font-medium transition-colors duration-200"
+                >
+                  لايف
+                </Link>
+                <Link
+                  to="/student/chapters"
+                  onClick={handleLinkClick}
+                  className="text-gray-700 hover:text-red-500 font-medium transition-colors duration-200"
+                >
+                  الدروس
+                </Link>
+              </>
+            )}
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 text-gray-700 hover:text-red-500 font-medium transition-colors duration-200"
@@ -152,20 +158,24 @@ const Navbar = () => {
           className={`lg:hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-96 opacity-100 pointer-events-auto" : "max-h-0 opacity-0 pointer-events-none"}`}
         >
           <div className="py-4 space-y-4 bg-gray-50 rounded-lg mb-4">
-            <Link
-              to="/student/chapters"
-              onClick={handleLinkClick}
-              className="block text-right px-4 py-2 text-gray-700 hover:text-red-500 hover:bg-red-50 transition-colors duration-200"
-            >
-              الدروس
-            </Link>
-            <Link
-              to="/student/lives"
-              onClick={handleLinkClick}
-              className="block text-right px-4 py-2 text-gray-700 hover:text-red-500 hover:bg-red-50 transition-colors duration-200"
-            >
-              لايف
-            </Link>
+            {!paymentLoading && hasActivePayment && (
+              <>
+                <Link
+                  to="/student/chapters"
+                  onClick={handleLinkClick}
+                  className="block text-right px-4 py-2 text-gray-700 hover:text-red-500 hover:bg-red-50 transition-colors duration-200"
+                >
+                  الدروس
+                </Link>
+                <Link
+                  to="/student/lives"
+                  onClick={handleLinkClick}
+                  className="block text-right px-4 py-2 text-gray-700 hover:text-red-500 hover:bg-red-50 transition-colors duration-200"
+                >
+                  لايف
+                </Link>
+              </>
+            )}
             <Link
               to="/student/profile"
               onClick={handleLinkClick}

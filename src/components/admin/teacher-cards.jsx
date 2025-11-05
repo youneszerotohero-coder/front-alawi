@@ -36,24 +36,11 @@ export function TeacherCards() {
       const response = await teachersService.getTeachers();
       const list = response.data || [];
 
-      // Charger les counts en utilisant cache
-      const enriched = await Promise.all(
-        list.map(async (t) => {
-          let count = studentsCountCache[t.uuid];
-          if (typeof count === "undefined") {
-            try {
-              const cRes = await teachersService.getTeacherStudentsCount(
-                t.uuid,
-              );
-              count = cRes.count || 0;
-              studentsCountCache[t.uuid] = count;
-            } catch {
-              count = 0;
-            }
-          }
-          return { ...t, studentsCount: count };
-        }),
-      );
+      // Set studentsCount to 0 without making API calls
+      const enriched = list.map((t) => ({
+        ...t,
+        studentsCount: 0,
+      }));
 
       if (mountedRef.current) setTeachers(enriched);
     } catch (e) {
@@ -65,20 +52,14 @@ export function TeacherCards() {
   };
 
   const refreshCounts = async () => {
+    // Disabled: No longer fetching students count from API
     setRefreshingCounts(true);
     try {
-      const updated = await Promise.all(
-        teachers.map(async (t) => {
-          try {
-            const cRes = await teachersService.getTeacherStudentsCount(t.uuid);
-            const newCount = cRes.count || 0;
-            studentsCountCache[t.uuid] = newCount;
-            return { ...t, studentsCount: newCount };
-          } catch {
-            return t;
-          }
-        }),
-      );
+      // Just set all counts to 0 without making API calls
+      const updated = teachers.map((t) => ({
+        ...t,
+        studentsCount: 0,
+      }));
       if (mountedRef.current) setTeachers(updated);
     } finally {
       if (mountedRef.current) setRefreshingCounts(false);

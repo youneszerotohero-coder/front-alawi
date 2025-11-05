@@ -39,6 +39,7 @@ export function AddTeacherModal({ onTeacherCreated }) {
     highSchoolGrades: [],
     branches: [],
     percentageShare: 70,
+    isPublisher: false,
   });
 
   const MIDDLE_SCHOOL_GRADES = [
@@ -93,6 +94,7 @@ export function AddTeacherModal({ onTeacherCreated }) {
       highSchoolGrades: [],
       branches: [],
       percentageShare: 70,
+      isPublisher: false,
     });
     setError(null);
   };
@@ -124,6 +126,7 @@ export function AddTeacherModal({ onTeacherCreated }) {
         highSchoolGrades: formData.highSchoolGrades,
         branches: formData.branches,
         percentageShare: formData.percentageShare,
+        isPublisher: formData.isPublisher,
       };
       await teachersService.createTeacher(payload);
 
@@ -294,6 +297,18 @@ export function AddTeacherModal({ onTeacherCreated }) {
                   setFormData({ ...formData, percentageShare: parseFloat(e.target.value) || 70 })
                 }
               />
+            </div>
+            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border">
+              <Checkbox
+                id="isPublisher"
+                checked={formData.isPublisher}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, isPublisher: checked === true })
+                }
+              />
+              <Label htmlFor="isPublisher" className="cursor-pointer font-normal">
+                ناشر (Publisher)
+              </Label>
             </div>
           </div>
           <DialogFooter className="flex gap-3">

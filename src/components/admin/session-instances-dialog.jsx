@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -29,34 +30,82 @@ import {
   AlertCircle,
   Play,
   TrendingUp,
+  FileText,
 } from "lucide-react";
 import { sessionService } from "@/services/api/session.service";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 export function SessionInstancesDialog({ session, open, onOpenChange }) {
   const [instances, setInstances] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedInstances, setSelectedInstances] = useState(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [pagination, setPagination] = useState(null);
 
-  useEffect(() => {
-    if (open && session) {
-      loadSessionInstances();
-    }
-  }, [open, session]);
-
-  const loadSessionInstances = async () => {
+  const loadSessionInstances = useCallback(async (page = 1, isInitialLoad = false) => {
     if (!session) return;
 
-    setLoading(true);
+    if (isInitialLoad) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     setError(null);
+    
     try {
-      const resp = await sessionService.getSession(session.id, { limit: 4 });
+      const resp = await sessionService.getSession(session.id, { 
+        page, 
+        limit: 4 
+      });
       const apiInstances = resp?.data?.sessionInstances || [];
-      setInstances(apiInstances);
+      const instancesPagination = resp?.instancesPagination;
+      
+      if (isInitialLoad) {
+        setInstances(apiInstances);
+      } else {
+        // Append new instances to existing ones
+        setInstances(prev => [...prev, ...apiInstances]);
+      }
+      
+      // Update pagination state
+      if (instancesPagination) {
+        setPagination(instancesPagination);
+        const totalPages = instancesPagination.totalPages || 1;
+        setHasMore(page < totalPages);
+        setCurrentPage(page);
+      } else {
+        // Fallback: if no pagination info, assume no more if we got less than limit
+        setHasMore(apiInstances.length >= 4);
+        setCurrentPage(page);
+      }
     } catch (err) {
       console.error("Error loading session instances:", err);
       setError("تعذر تحميل تفاصيل الجلسة");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (open && session) {
+      // Reset state when dialog opens
+      setInstances([]);
+      setCurrentPage(1);
+      setHasMore(false);
+      setPagination(null);
+      loadSessionInstances(1, true);
+      setSelectedInstances(new Set());
+    }
+  }, [open, session, loadSessionInstances]);
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore) {
+      loadSessionInstances(currentPage + 1, false);
     }
   };
 
@@ -113,6 +162,182 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
   if (!session) return null;
 
   const instancesArray = Array.isArray(instances) ? instances : [];
+
+  const handleToggleSelect = (instanceId) => {
+    const newSelected = new Set(selectedInstances);
+    if (newSelected.has(instanceId)) {
+      newSelected.delete(instanceId);
+    } else {
+      newSelected.add(instanceId);
+    }
+    setSelectedInstances(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedInstances.size === instancesArray.length) {
+      setSelectedInstances(new Set());
+    } else {
+      setSelectedInstances(new Set(instancesArray.map((i) => i.id)));
+    }
+  };
+
+  const formatCurrencyForPDF = (amount) => {
+    return new Intl.NumberFormat("ar-DZ").format(amount);
+  };
+
+  const generatePDF = async () => {
+    if (selectedInstances.size === 0) {
+      alert("يرجى تحديد صف واحد على الأقل");
+      return;
+    }
+
+    const selectedData = instancesArray.filter((instance) =>
+      selectedInstances.has(instance.id)
+    );
+
+    // Calculate totals
+    const totalAttendance = selectedData.reduce(
+      (sum, it) => sum + (it._count?.attendances ?? it.attendance_count ?? 0),
+      0
+    );
+    const totalFreeAttendance = selectedData.reduce(
+      (sum, it) => sum + (it.free_attendance_count ?? 0),
+      0
+    );
+    const totalRevenue = selectedData.reduce(
+      (sum, it) => sum + (it.revenue || 0),
+      0
+    );
+    const totalTeacherShare = selectedData.reduce(
+      (sum, it) => sum + (it.teacher_share || 0),
+      0
+    );
+    const totalSchoolShare = selectedData.reduce(
+      (sum, it) => sum + (it.school_share || 0),
+      0
+    );
+
+    // Create a temporary container for the PDF content
+    const tempContainer = document.createElement("div");
+    tempContainer.style.position = "absolute";
+    tempContainer.style.left = "-9999px";
+    tempContainer.style.width = "1200px";
+    tempContainer.style.padding = "20px";
+    tempContainer.style.backgroundColor = "white";
+    tempContainer.style.fontFamily = "Arial, sans-serif";
+    tempContainer.style.direction = "rtl";
+    tempContainer.style.textAlign = "right";
+
+    // Create header
+    const header = document.createElement("div");
+    header.style.marginBottom = "20px";
+    header.innerHTML = `
+      <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">تقرير الجلسات</h1>
+      <p style="font-size: 14px; margin-bottom: 5px;">الجلسة: ${session.module || session.title || "غير محدد"}</p>
+      <p style="font-size: 12px;">تاريخ التقرير: ${new Date().toLocaleDateString("ar-DZ")}</p>
+    `;
+    tempContainer.appendChild(header);
+
+    // Create table
+    const table = document.createElement("table");
+    table.style.width = "100%";
+    table.style.borderCollapse = "collapse";
+    table.style.marginBottom = "20px";
+
+    // Table header
+    const thead = document.createElement("thead");
+    thead.innerHTML = `
+      <tr style="background-color: #f3f4f6;">
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">التاريخ</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">الوقت</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">الحالة</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">الحضور</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">اعفاء</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">الإيراد</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">حصة الأستاذ</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">حصة المدرسة</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">الدفع</th>
+      </tr>
+    `;
+    table.appendChild(thead);
+
+    // Table body
+    const tbody = document.createElement("tbody");
+    selectedData.forEach((instance) => {
+      const dateVal = instance.dateTime || instance.date;
+      const statusLabel = statusToArabic(instance.status);
+      const attendanceCount = instance._count?.attendances ?? instance.attendance_count ?? 0;
+      const freeAttendanceCount = instance.free_attendance_count ?? 0;
+
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatDate(dateVal)}</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatTime(dateVal)}</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${statusLabel}</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${attendanceCount}</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${freeAttendanceCount}</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatCurrency(instance.revenue || 0)}</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatCurrency(instance.teacher_share || 0)}</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatCurrency(instance.school_share || 0)}</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${instance.isPaid ? "مدفوع" : "غير مدفوع"}</td>
+      `;
+      tbody.appendChild(row);
+    });
+
+    // Totals row
+    const totalsRow = document.createElement("tr");
+    totalsRow.style.backgroundColor = "#f9fafb";
+    totalsRow.style.fontWeight = "bold";
+    totalsRow.innerHTML = `
+      <td colspan="3" style="border: 1px solid #ddd; padding: 8px; text-align: right;">الإجمالي</td>
+      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${totalAttendance}</td>
+      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${totalFreeAttendance}</td>
+      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatCurrency(totalRevenue)}</td>
+      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatCurrency(totalTeacherShare)}</td>
+      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatCurrency(totalSchoolShare)}</td>
+      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;"></td>
+    `;
+    tbody.appendChild(totalsRow);
+
+    table.appendChild(tbody);
+    tempContainer.appendChild(table);
+
+    // Append to body temporarily
+    document.body.appendChild(tempContainer);
+
+    try {
+      // Convert to canvas
+      const canvas = await html2canvas(tempContainer, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+
+      // Create PDF
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const imgWidth = 297; // A4 width in mm (landscape)
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+
+      // Download PDF
+      const fileName = `تقرير_جلسات_${new Date().getTime()}.pdf`;
+      pdf.save(fileName);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert("حدث خطأ أثناء إنشاء التقرير");
+    } finally {
+      // Remove temporary container
+      document.body.removeChild(tempContainer);
+    }
+  };
+
   const totalRevenue = instancesArray.reduce((sum, it) => sum + (it.revenue || 0), 0);
   const totalTeacherShare = instancesArray.reduce((sum, it) => sum + (it.teacher_share || 0), 0);
   const totalSchoolShare = instancesArray.reduce((sum, it) => sum + (it.school_share || 0), 0);
@@ -166,7 +391,12 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={loadSessionInstances}
+                  onClick={() => {
+                    setInstances([]);
+                    setCurrentPage(1);
+                    setHasMore(false);
+                    loadSessionInstances(1, true);
+                  }}
                   disabled={loading}
                   className="flex items-center gap-1"
                 >
@@ -259,13 +489,31 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
 
               {!loading && !error && instances.length > 0 && (
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <Button
+                      onClick={generatePDF}
+                      disabled={selectedInstances.size === 0}
+                      className="flex items-center gap-2"
+                      variant="default"
+                    >
+                      <FileText className="h-4 w-4" />
+                      تقرير ({selectedInstances.size})
+                    </Button>
+                  </div>
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-12">
+                          <Checkbox
+                            checked={selectedInstances.size === instancesArray.length && instancesArray.length > 0}
+                            onCheckedChange={handleSelectAll}
+                          />
+                        </TableHead>
                         <TableHead className="text-right">التاريخ</TableHead>
                         <TableHead className="text-right">الوقت</TableHead>
                         <TableHead className="text-right">الحالة</TableHead>
                         <TableHead className="text-right">الحضور</TableHead>
+                        <TableHead className="text-right">اعفاء</TableHead>
                         <TableHead className="text-right">الإيراد</TableHead>
                         <TableHead className="text-right">حصة الأستاذ</TableHead>
                         <TableHead className="text-right">حصة المدرسة</TableHead>
@@ -278,6 +526,12 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
                         const statusLabel = statusToArabic(instance.status);
                         return (
                           <TableRow key={instance.id} className="hover:bg-gray-50">
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedInstances.has(instance.id)}
+                                onCheckedChange={() => handleToggleSelect(instance.id)}
+                              />
+                            </TableCell>
                             <TableCell className="font-medium">
                               {formatDate(dateVal)}
                             </TableCell>
@@ -298,7 +552,12 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
                                 {instance._count?.attendances ?? instance.attendance_count ?? 0}
                               </div>
                             </TableCell>
-                            
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <UserX className="h-3 w-3 text-blue-500" />
+                                {instance.free_attendance_count ?? 0}
+                              </div>
+                            </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-1">
                                 <DollarSign className="h-3 w-3 text-green-500" />
@@ -340,6 +599,37 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
                       })}
                     </TableBody>
                   </Table>
+                  
+                  {/* Load More Button */}
+                  {hasMore && (
+                    <div className="flex justify-center mt-4">
+                      <Button
+                        onClick={handleLoadMore}
+                        disabled={loadingMore}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                      >
+                        {loadingMore ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            جاري التحميل...
+                          </>
+                        ) : (
+                          <>
+                            تحميل المزيد
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Pagination Info */}
+                  {pagination && (
+                    <div className="text-center text-sm text-gray-500 mt-2">
+                      صفحة {pagination.page || currentPage} من {pagination.totalPages || 1} 
+                      {" "}({pagination.total || instances.length} إجمالي)
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

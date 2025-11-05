@@ -107,21 +107,11 @@ export function TeachersTable({ searchQuery = "" }) {
       };
       setMeta(expressMetaToLaravelMeta);
       
-      // Always fetch fresh studentsCount from backend to avoid stale cache
-      const enriched = await Promise.all(
-        list.map(async (t) => {
-          try {
-            const cRes = await teachersService.getTeacherStudentsCount(t.id);
-            const count = cRes.count || 0;
-            // Optionally update cache if you want to keep it for future
-            studentsCountCache.current[t.id] = count;
-            persistCache();
-            return { ...t, studentsCount: count };
-          } catch {
-            return { ...t, studentsCount: 0 };
-          }
-        })
-      );
+      // Set studentsCount to 0 without making API calls
+      const enriched = list.map((t) => ({
+        ...t,
+        studentsCount: 0,
+      }));
       if (mountedRef.current) setTeachers(enriched);
     } catch {
       if (mountedRef.current) setError("خطأ في تحميل بيانات الأساتذة");
@@ -131,30 +121,16 @@ export function TeachersTable({ searchQuery = "" }) {
   };
 
   const refreshCounts = async () => {
+    // Disabled: No longer fetching students count from API
     setRefreshingCounts(true);
     try {
-      // ⚡ Clear cache before refreshing
-      studentsCountCache.current = {};
-      sessionStorage.removeItem(CACHE_KEY);
-      console.log("🗑️ Cleared teachers students count cache");
+      // Just set all counts to 0 without making API calls
+      const updated = teachers.map((t) => ({
+        ...t,
+        studentsCount: 0,
+      }));
       
-      const updated = await Promise.all(
-        teachers.map(async (t) => {
-          try {
-            const cRes = await teachersService.getTeacherStudentsCount(t.id);
-            const newCount = cRes.count || 0;
-            studentsCountCache.current[t.id] = newCount;
-            return { ...t, studentsCount: newCount };
-          } catch {
-            return { ...t, studentsCount: 0 };
-          }
-        }),
-      );
-      
-      persistCache();
       if (mountedRef.current) setTeachers(updated);
-      
-      console.log("✅ Teachers students count refreshed");
     } finally {
       if (mountedRef.current) setRefreshingCounts(false);
     }

@@ -151,7 +151,15 @@ const StudentCoursePage = () => {
             <div className="space-y-6">
               {courseData.videoLink ? (
                 <VideoPlayer
-                  videoSrc={courseData.videoLink}
+                  videoSrc={(() => {
+                    // If videoLink is already a full URL (http/https), use it as is
+                    if (courseData.videoLink.startsWith('http://') || courseData.videoLink.startsWith('https://')) {
+                      return courseData.videoLink;
+                    }
+                    // If it's a relative path, construct the full URL with backend
+                    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+                    return `${backendUrl}/${courseData.videoLink}`;
+                  })()}
                   title={courseData.title}
                   duration=""
                   thumbnail=""
@@ -203,7 +211,7 @@ const StudentCoursePage = () => {
               {courseData.explanationPdf ? (
                 <div className="bg-white rounded-lg border border-gray-300 overflow-hidden" style={{ height: '800px' }}>
                   <iframe
-                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/${courseData.explanationPdf}`}
+                    src={`/${courseData.explanationPdf}`}
                     className="w-full h-full"
                     title="ملخص الدرس"
                     style={{ border: 'none' }}
@@ -246,7 +254,7 @@ const StudentCoursePage = () => {
               {courseData.activitiesPdf ? (
                 <div className="bg-white rounded-lg border border-gray-300 overflow-hidden" style={{ height: '800px' }}>
                   <iframe
-                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/${courseData.activitiesPdf}`}
+                    src={`/${courseData.activitiesPdf}`}
                     className="w-full h-full"
                     title="تمارين الدرس"
                     style={{ border: 'none' }}
