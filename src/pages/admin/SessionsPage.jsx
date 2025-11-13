@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Calendar, Clock, CheckCircle, XCircle } from "lucide-react";
 import { SessionsTable } from "@/components/admin/sessions-table";
 import { AddSessionModal } from "@/components/admin/add-session-modal";
@@ -18,7 +18,7 @@ export default function AdminSessionsPage() {
     end_date: new Date().toISOString().split("T")[0],
   });
   const [searchQuery, setSearchQuery] = useState("");
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const addSessionToTableRef = useRef(null);
   const [stats, setStats] = useState({
     todayTotal: 0,
     todayProgrammed: 0,
@@ -73,8 +73,12 @@ export default function AdminSessionsPage() {
     fetchStats(filters);
   }, [filters]);
 
-  const handleSessionAdded = () => {
-    setRefreshTrigger(prev => prev + 1);
+  const handleSessionAdded = (newSession) => {
+    // Call the addSessionToState function from SessionsTable
+    if (addSessionToTableRef.current && newSession) {
+      addSessionToTableRef.current(newSession);
+    }
+    // Refresh stats
     fetchStats(filters);
   };
 
@@ -106,7 +110,7 @@ export default function AdminSessionsPage() {
           <SessionsTable 
             filters={filters} 
             searchQuery={searchQuery} 
-            key={refreshTrigger} 
+            onAddSessionRef={(ref) => { addSessionToTableRef.current = ref; }}
           />
         </CardContent>
       </Card>

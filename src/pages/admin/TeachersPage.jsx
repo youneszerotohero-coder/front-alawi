@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { TeachersTable } from "@/components/admin/teachers-table";
 import { AddTeacherModal } from "@/components/admin/add-teacher-modal";
 import { TeachersFilters } from "@/components/admin/teachers-filters";
@@ -12,7 +12,7 @@ import {
 
 export default function AdminTeachersPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const addTeacherToTableRef = useRef(null);
 
   const handleSearchChange = (query) => {
     setSearchQuery(query);
@@ -22,8 +22,11 @@ export default function AdminTeachersPage() {
     setSearchQuery("");
   };
 
-  const handleTeacherAdded = () => {
-    setRefreshTrigger(prev => prev + 1);
+  const handleTeacherAdded = (newTeacher) => {
+    // Call the addTeacherToState function from TeachersTable
+    if (addTeacherToTableRef.current && newTeacher) {
+      addTeacherToTableRef.current(newTeacher);
+    }
   };
 
   return (
@@ -44,7 +47,10 @@ export default function AdminTeachersPage() {
             onSearchChange={handleSearchChange}
             onClearFilters={handleClearFilters}
           />
-          <TeachersTable searchQuery={searchQuery} key={refreshTrigger} />
+          <TeachersTable 
+            searchQuery={searchQuery} 
+            onAddTeacherRef={(ref) => { addTeacherToTableRef.current = ref; }}
+          />
         </CardContent>
       </Card>
     </div>

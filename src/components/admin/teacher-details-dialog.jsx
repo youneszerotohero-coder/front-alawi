@@ -27,8 +27,10 @@ import {
   Eye,
   Play,
   AlertCircle,
+  KeyRound,
 } from "lucide-react";
 import { sessionService } from "@/services/api/session.service";
+import AuthService from "@/services/api/auth.service";
 import { SessionInstancesDialog } from "./session-instances-dialog";
 
 export function TeacherDetailsDialog({ teacher, open, onOpenChange }) {
@@ -154,6 +156,43 @@ export function TeacherDetailsDialog({ teacher, open, onOpenChange }) {
     return "غير محدد";
   };
 
+  const handleResetPassword = async () => {
+    if (!teacher.phone) {
+      alert("❌ خطأ\n\nالأستاذ لا يملك رقم هاتف");
+      return;
+    }
+
+    const confirmMessage = `
+🔑 إعادة تعيين كلمة المرور
+
+هل أنت متأكد من إعادة تعيين كلمة المرور لهذا الأستاذ؟
+
+الأستاذ: ${teacher.firstName} ${teacher.lastName}
+الهاتف: ${teacher.phone}
+
+سيتم تعيين كلمة المرور إلى: 00000000
+    `;
+
+    if (confirm(confirmMessage)) {
+      try {
+        // Find user by phone
+        const user = await AuthService.getUserByPhone(teacher.phone);
+        if (!user || !user.id) {
+          alert("❌ خطأ\n\nلم يتم العثور على حساب مستخدم مرتبط بهذا الأستاذ");
+          return;
+        }
+
+        await AuthService.resetPassword(user.id, "00000000");
+        alert(`✅ تم بنجاح\n\nتم إعادة تعيين كلمة المرور إلى 00000000`);
+      } catch (error) {
+        console.error("Error resetting password:", error);
+        const errorMessage =
+          error.response?.data?.message || "فشل في إعادة تعيين كلمة المرور";
+        alert(`❌ خطأ\n\n${errorMessage}`);
+      }
+    }
+  };
+
   if (!teacher) return null;
 
   return (
@@ -163,6 +202,19 @@ export function TeacherDetailsDialog({ teacher, open, onOpenChange }) {
         dir="rtl"
       >
         <div className="space-y-6">
+          {/* Actions */}
+          <div className="flex gap-2 justify-start">
+            <Button
+              onClick={handleResetPassword}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <KeyRound className="h-4 w-4" />
+              إعادة تعيين كلمة المرور
+            </Button>
+          </div>
+
           {/* Teacher Basic Info */}
           <Card>
             <CardHeader>

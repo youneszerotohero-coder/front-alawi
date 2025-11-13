@@ -32,6 +32,7 @@ import {
 import { paymentService } from "@/services/api/payment.service";
 import { attendanceService } from "@/services/api/attendance.service";
 import { toast } from "sonner";
+import { PaymentReceipt } from "./payment-receipt";
 
 const currencyFormatter = new Intl.NumberFormat("ar-DZ", {
   style: "currency",
@@ -96,6 +97,8 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
   const [paymentConfirmation, setPaymentConfirmation] = useState(null);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [isProcessingConfirmation, setIsProcessingConfirmation] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
 
   // Check if student has free subscription
   const isFreeStudent = student?.data?.student?.hasFreeSubscription || false;
@@ -191,6 +194,14 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
 
         setTodaysSessions(updateSessions);
         setUpcomingSessions(updateSessions);
+
+        // Show receipt
+        setReceiptData({
+          payment: paymentResponse.data,
+          student: student?.data?.student,
+          session: session,
+        });
+        setShowReceipt(true);
 
         return { success: true, payment: paymentResponse.data };
       }
@@ -474,6 +485,7 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
                 <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-gray-200 shadow-md">
                   <img
                     src={
+                      studentData.profilePicUrl || 
                       studentData.picture ||
                       `https://ui-avatars.com/api/?name=${encodeURIComponent(studentData.firstName || "")}+${encodeURIComponent(studentData.lastName || "")}&background=0D8ABC&color=fff&size=200`
                     }
@@ -486,7 +498,7 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-right">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-right">
                 <div>
                   <p className="text-sm text-muted-foreground">الاسم الكامل</p>
                   <p className="font-medium">
@@ -503,14 +515,22 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
                   <p className="text-sm text-muted-foreground">الهاتف</p>
                   <p className="font-medium">{studentData.phone || "—"}</p>
                 </div>
-                {studentData.hasFreeSubscription && (
-                  <div className="col-span-full">
-                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
-                      <CheckCircle className="h-3 w-3 ml-1" />
-                      طالب مجاني
-                    </Badge>
-                  </div>
-                )}
+                <div>
+                  <p className="text-sm text-muted-foreground">طالب مجاني</p>
+                  <p className="font-medium">
+                    {studentData.hasFreeSubscription ? (
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
+                        <CheckCircle className="h-3 w-3 ml-1" />
+                        نعم
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-gray-50 text-gray-600">
+                        <XCircle className="h-3 w-3 ml-1" />
+                        لا
+                      </Badge>
+                    )}
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -613,6 +633,20 @@ export function StudentCheckinDialog({ student, open, onOpenChange }) {
           </AlertDialogContent>
         </AlertDialog>
       </DialogContent>
+
+      {/* Payment Receipt */}
+      {receiptData && (
+        <PaymentReceipt
+          payment={receiptData.payment}
+          student={receiptData.student}
+          session={receiptData.session}
+          open={showReceipt}
+          onClose={() => {
+            setShowReceipt(false);
+            setReceiptData(null);
+          }}
+        />
+      )}
     </Dialog>
   );
 }

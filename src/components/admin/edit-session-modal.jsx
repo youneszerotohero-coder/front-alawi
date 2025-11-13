@@ -42,6 +42,7 @@ const BRANCH_OPTIONS = {
     { value: "INDUSTRIAL", label: "صناعي" },
     { value: "MATHEMATIC", label: "رياضيات" },
     { value: "GESTION", label: "تسيير" },
+    { value: "EXPERIMENTAL_SCIENCES", label: "علوم تجريبية" },
   ],
   "3AS": [
     { value: "LANGUAGES", label: "آداب ولغات" },
@@ -52,6 +53,7 @@ const BRANCH_OPTIONS = {
     { value: "INDUSTRIAL", label: "صناعي" },
     { value: "MATHEMATIC", label: "رياضيات" },
     { value: "GESTION", label: "تسيير" },
+    { value: "EXPERIMENTAL_SCIENCES", label: "علوم تجريبية" },
   ],
 };
 
@@ -116,10 +118,13 @@ export function EditSessionModal({
         time = now.toTimeString().slice(0, 5);
       }
 
-      // Extract branch IDs - handle both single branch and array of branches
+      // Extract branch IDs - handle branches array
       const branchIds = [];
-      if (session.branch) {
-        // Single branch from schema
+      if (session.branches && Array.isArray(session.branches)) {
+        // Branches array from schema
+        branchIds.push(...session.branches);
+      } else if (session.branch) {
+        // Backward compatibility: single branch
         branchIds.push(session.branch);
       }
 

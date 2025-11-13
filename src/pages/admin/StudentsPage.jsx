@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { StudentsTable } from "@/components/admin/students-table";
 import { AddStudentModal } from "@/components/admin/add-student-modal";
 import { StudentsFilters } from "@/components/admin/students-filters";
@@ -12,7 +12,7 @@ import {
 
 export default function AdminStudentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const addStudentToTableRef = useRef(null);
 
   const handleSearchChange = (query) => {
     setSearchQuery(query);
@@ -22,8 +22,11 @@ export default function AdminStudentsPage() {
     setSearchQuery("");
   };
 
-  const handleStudentAdded = () => {
-    setRefreshTrigger(prev => prev + 1);
+  const handleStudentAdded = (newStudent) => {
+    // Call the addStudentToState function from StudentsTable
+    if (addStudentToTableRef.current && newStudent) {
+      addStudentToTableRef.current(newStudent);
+    }
   };
 
   return (
@@ -51,7 +54,10 @@ export default function AdminStudentsPage() {
             onSearchChange={handleSearchChange}
             onClearFilters={handleClearFilters}
           />
-          <StudentsTable searchQuery={searchQuery} key={refreshTrigger} />
+          <StudentsTable 
+            searchQuery={searchQuery} 
+            onAddStudentRef={(ref) => { addStudentToTableRef.current = ref; }}
+          />
         </CardContent>
       </Card>
     </div>

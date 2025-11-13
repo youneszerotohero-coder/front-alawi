@@ -3,7 +3,7 @@ import AuthService from "../../services/api/auth.service";
 import branchesService from "../../services/api/branches.service";
 import api from "../../services/api/axios.config";
 // استخدام أيقونات من مكتبة lucide-react
-import { Phone, Camera, BookOpen, Calendar, Info } from "lucide-react";
+import { Phone, Camera, BookOpen, Info } from "lucide-react";
 
 const YEAR_LABELS = {
   "1AM": "السنة الأولى متوسط",
@@ -54,6 +54,7 @@ function getBranchNameFromEnum(branchEnum) {
     "INDUSTRIAL": "تقني رياضي - صناعة",
     "MATHEMATIC": "رياضيات",
     "GESTION": "تسيير واقتصاد",
+    "EXPERIMENTAL_SCIENCES": "علوم تجريبية",
   };
   
   return branchMap[branchEnum] || branchEnum;
@@ -273,18 +274,23 @@ const StudentProfilePage = () => {
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {!subsLoading &&
-              subs.map((sub) => (
+              subs.map((sub) => {
+                // Determine theme based on publisher status
+                const isPublisher = sub.is_publisher === true;
+                const isGoldenTheme = isPublisher;
+                
+                return (
                 <div
                   key={sub.id}
                   className={`
                       relative overflow-hidden rounded-2xl p-6 shadow-xl transform transition-all duration-300 hover:scale-105 hover:shadow-2xl
-                      ${sub.is_active ? "bg-gradient-to-br from-green-500 via-emerald-600 to-green-700 text-white" : sub.is_alouaoui
+                      ${isGoldenTheme 
                           ? "bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 text-white"
                           : "bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 text-white"}
                     `}
                 >
-                  {/* Effet brillant pour carte Alouaoui */}
-                  {sub.is_alouaoui && (
+                  {/* Effet brillant pour carte Publisher (Golden) */}
+                  {isGoldenTheme && (
                     <>
                       <div className="absolute top-0 left-0 w-full h-full opacity-30 bg-gradient-to-r from-transparent via-white to-transparent animate-shimmer"></div>
                       <div className="absolute -top-20 -right-20 w-40 h-40 bg-yellow-300 rounded-full opacity-20 blur-3xl"></div>
@@ -298,43 +304,11 @@ const StudentProfilePage = () => {
 
                   {/* Contenu de la carte */}
                   <div className="relative z-10">
-                    {/* En-tête avec badge et photo du prof */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div
-                        className={`
-                          px-3 py-1 rounded-full text-xs font-semibold
-                          ${sub.is_active ? "bg-white bg-opacity-20 text-white" : sub.is_alouaoui
-                              ? "bg-yellow-900 bg-opacity-30 text-yellow-100"
-                              : "bg-white bg-opacity-20 text-white"}
-                        `}
-                      >
-                        {sub.is_active ? "✅ اشتراك نشط" : sub.is_alouaoui
-                          ? "🌟 اشتراك شهري"
-                          : sub.is_monthly ? "📅 اشتراك شهري" : "🎫 بطاقة حصة"}
-                      </div>
-
-                      {/* Photo du professeur */}
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-5 h-5 opacity-70" />
-                        {sub.teacher_picture ? (
-                          <img
-                            src={sub.teacher_picture}
-                            alt={sub.teacher_name}
-                            className="w-16 h-16 rounded-full border-2 border-white border-opacity-50 object-cover shadow-lg"
-                          />
-                        ) : (
-                          <div className="w-16 h-16 rounded-full border-2 border-white border-opacity-50 bg-white bg-opacity-20 flex items-center justify-center text-xl font-bold shadow-lg">
-                            {sub.teacher_name?.charAt(0) || "أ"}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
                     {/* Nom du professeur */}
                     <h3
                       className={`
                         text-2xl font-bold mb-4
-                        ${sub.is_alouaoui ? "text-yellow-50" : "text-white"}
+                        ${isGoldenTheme ? "text-yellow-50" : "text-white"}
                       `}
                     >
                       {sub.teacher_name || "أستاذ"}
@@ -369,7 +343,7 @@ const StudentProfilePage = () => {
                           className={`h-full rounded-full transition-all duration-500 ${
                             daysToExpire(sub) <= 3
                               ? "bg-red-400"
-                              : sub.is_alouaoui
+                              : isGoldenTheme
                                 ? "bg-yellow-200"
                                 : "bg-white"
                           }`}
@@ -386,14 +360,15 @@ const StudentProfilePage = () => {
                         ⚠️ سينتهي اشتراكك قريبًا، يرجى التجديد
                       </div>
                     )}
-                    {daysToExpire(sub) > 3 && sub.is_alouaoui && (
+                    {daysToExpire(sub) > 3 && isGoldenTheme && (
                       <div className="bg-yellow-900 bg-opacity-20 border border-yellow-300 border-opacity-30 rounded-lg px-3 py-2 text-xs mt-3">
                         ✨ وصول كامل لجميع المحتويات
                       </div>
                     )}
                   </div>
                 </div>
-              ))}
+              );
+              })}
           </div>
 
           {/* Empty State (if no courses) */}

@@ -76,23 +76,26 @@ class AuthService {
       const response = await api.post("/auth/register", payload);
       const serverData = response.data.data;
 
-      // Backend now returns student data directly (not wrapped in {user: ...})
-      const user = serverData;
+      // Backend now returns student data with user info nested
+      // serverData is the student object, serverData.user contains user info
+      const student = serverData;
+      const userInfo = student.user || {};
 
       const formattedUser = {
-        id: user.id || user.userId,
-        phone: userData.phone,
-        role: "student",
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        birthDate: user.birthDate || null,
-        birth_date: user.birthDate || null,
-        schoolName: user.schoolName || null,
-        school_name: user.schoolName || null,
-        address: user.address || null,
-        middleSchoolGrade: user.middleSchoolGrade || null,
-        highSchoolGrade: user.highSchoolGrade || null,
-        branch: user.branch || null,
+        id: userInfo.id || student.userId || student.id,
+        phone: userInfo.phone || userData.phone,
+        role: (userInfo.role || "student").toLowerCase(),
+        firstName: student.firstName || "",
+        lastName: student.lastName || "",
+        birthDate: student.birthDate || null,
+        birth_date: student.birthDate || null,
+        schoolName: student.schoolName || null,
+        school_name: student.schoolName || null,
+        address: student.address || null,
+        middleSchoolGrade: student.middleSchoolGrade || null,
+        highSchoolGrade: student.highSchoolGrade || null,
+        branch: student.branch || null,
+        createdAt: userInfo.createdAt || student.createdAt || null,
       };
 
       localStorage.setItem("user", JSON.stringify(formattedUser));
@@ -181,6 +184,15 @@ class AuthService {
   async changePassword(passwordData) {
     try {
       const response = await api.post('/auth/change-password', passwordData);
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async resetPassword(userId, password) {
+    try {
+      const response = await api.post('/auth/reset-password', { userId, password });
       return response.data;
     } catch (error) {
       throw this.handleError(error);

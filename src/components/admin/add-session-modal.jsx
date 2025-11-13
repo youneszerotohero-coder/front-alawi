@@ -24,7 +24,6 @@ import { sessionService } from "@/services/api/session.service";
 import { teacherService } from "@/services/api/teacher.service";
 import branchesService from "@/services/api/branches.service";
 import { useToast } from "@/hooks/use-toast";
-import { cacheService } from "@/services/cache.service";
 import { invalidateDashboardCache } from "@/hooks/useDashboardData"; // ⚡ Invalidate dashboard
 
 const HIGH_SCHOOL_YEARS = ["1AS", "2AS", "3AS"];
@@ -105,6 +104,7 @@ export function AddSessionModal({ onSessionAdded }) {
             { id: "INDUSTRIAL", name: "صناعي", code: "IND" },
             { id: "MATHEMATIC", name: "رياضيات", code: "MATH" },
             { id: "GESTION", name: "تسيير واقتصاد", code: "GEST" },
+            { id: "EXPERIMENTAL_SCIENCES", name: "علوم تجريبية", code: "EXP" },
           ];
         }
 
@@ -127,14 +127,16 @@ export function AddSessionModal({ onSessionAdded }) {
 
   const fetchTeachers = async () => {
     try {
-      // Use cache service to avoid repeated API calls
-      const data = await cacheService.getTeachers(async () => {
-        const response = await teacherService.getTeachers();
-        return response.data || [];
-      });
-      setTeachers(data);
+      // Fetch teachers directly from API without localStorage cache
+      // Pass a parameter to bypass cache (limit with a value bypasses cache in teacherService)
+      // Use limit 100 (max allowed) to get all teachers
+      const response = await teacherService.getTeachers({ limit: 100 });
+      // Response format: { data: [...], pagination: {...} }
+      const teachersList = response?.data || [];
+      setTeachers(teachersList);
     } catch (error) {
       console.error("Error fetching teachers:", error);
+      setTeachers([]);
     }
   };
 
@@ -189,12 +191,13 @@ export function AddSessionModal({ onSessionAdded }) {
     try {
       const sessionData =
         sessionService.transformSessionForSubmission(formData);
-      await sessionService.createSession(sessionData);
+      const response = await sessionService.createSession(sessionData);
+      
+      // Get the created session from the response
+      const createdSession = response.data || response;
 
-      // ⚡ Invalidate cache after session creation
-      cacheService.invalidateSessions();
       invalidateDashboardCache();
-      console.log("🔄 Session created - Cache invalidated");
+      console.log("🔄 Session created - Adding to state");
 
       // Show success message
       const selectedTeacher = teachers.find((t) => t.id === formData.teacher);
@@ -225,7 +228,10 @@ export function AddSessionModal({ onSessionAdded }) {
       });
       setAvailableBranches([]);
 
-      onSessionAdded?.();
+      // Pass the created session to the callback instead of triggering a refresh
+      if (onSessionAdded && createdSession) {
+        onSessionAdded(createdSession);
+      }
     } catch (error) {
       console.error("Error creating session:", error);
       const errorMessage =

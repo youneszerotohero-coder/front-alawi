@@ -11,7 +11,6 @@ import {
 import { StudentDetailsModal } from "@/components/admin/student-details-modal";
 import studentsService from "../../services/api/students.service";
 import { useDebounce } from "@/hooks/useDebounce"; // 🔧 Use centralized debounce hook
-import { cacheService } from "@/services/cache.service"; // ⚡ Cache optimization
 import { invalidateDashboardCache } from "@/hooks/useDashboardData"; // ⚡ Invalidate dashboard after mutations
 
 // Helper function to get academic year in Arabic
@@ -51,23 +50,25 @@ const getBranchName = (branch) => {
     "INDUSTRIAL": "تقني رياضي - صناعة",
     "MATHEMATIC": "رياضيات",
     "GESTION": "تسيير واقتصاد",
+    "EXPERIMENTAL_SCIENCES": "علوم تجريبية",
   };
   
   return branchMap[branch] || branch;
 };
 
-export function StudentsTable({ searchQuery = "" }) {
+export function StudentsTable({ searchQuery = "", onAddStudentRef } = {}) {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
   // 🔧 Debounce search query with centralized hook (500ms for consistency)
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
-  // Optimized fetch function with caching
+  // Fetch function - directly from API without localStorage cache
   const fetchStudents = useCallback(async (page = 1, search = "") => {
     try {
       setLoading(true);
@@ -75,22 +76,20 @@ export function StudentsTable({ searchQuery = "" }) {
 
       const params = {
         page,
-        limit: 20,
+        limit: 10, // 10 students per page
       };
 
       if (search && search.trim()) {
         params.search = search.trim();
       }
 
-      // ⚡ Use cache service for students
-      const response = await cacheService.getStudents(
-        async () => await studentsService.getStudents(params),
-        params,
-      );
+      // Fetch directly from API without using localStorage cache
+      const response = await studentsService.getStudents(params);
 
       // Express backend returns { data: [...], pagination: { page, limit, total, totalPages } }
       setStudents(response.data || []);
       setTotalPages(response.pagination?.totalPages || 1);
+      setTotalCount(response.pagination?.total || 0);
       setError(null);
     } catch (err) {
       console.error("Error fetching students:", err);
@@ -99,6 +98,33 @@ export function StudentsTable({ searchQuery = "" }) {
       setLoading(false);
     }
   }, []); // No dependencies to avoid infinite re-renders
+
+  // Function to add a new student to the state
+  const addStudentToState = useCallback((newStudent) => {
+    // Only add if we're on page 1, no search query, and there's space (less than 10 students)
+    if (currentPage === 1 && !debouncedSearchQuery && students.length < 10) {
+      // Add the new student at the beginning of the list (most recent first)
+      setStudents(prev => [newStudent, ...prev]);
+      // Update total count
+      setTotalCount(prev => prev + 1);
+      // Recalculate total pages if needed
+      const newTotal = totalCount + 1;
+      setTotalPages(Math.ceil(newTotal / 10));
+    } else {
+      // If we're not on page 1 or have a search, just update the total count
+      // The user can navigate to see the new student
+      setTotalCount(prev => prev + 1);
+      const newTotal = totalCount + 1;
+      setTotalPages(Math.ceil(newTotal / 10));
+    }
+  }, [currentPage, debouncedSearchQuery, students.length, totalCount]);
+
+  // Expose the addStudentToState function to parent via ref callback
+  useEffect(() => {
+    if (onAddStudentRef) {
+      onAddStudentRef(addStudentToState);
+    }
+  }, [onAddStudentRef, addStudentToState]);
 
   // Effect for search changes
   useEffect(() => {
@@ -253,11 +279,8 @@ export function StudentsTable({ searchQuery = "" }) {
             }
           }}
           onUpdate={() => {
-            // ⚡ Invalidate cache after student update/delete
-            cacheService.invalidateStudents();
-            invalidateDashboardCache(); // Clear dashboard cache too
-            
             // Refresh current page when student is updated
+            invalidateDashboardCache(); // Clear dashboard cache
             fetchStudents(currentPage, debouncedSearchQuery);
             setSelectedStudent(null);
           }}

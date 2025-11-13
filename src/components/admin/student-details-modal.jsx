@@ -16,8 +16,12 @@ import {
   MapPin,
   Trash2,
   XCircle,
+  KeyRound,
+  CreditCard,
 } from "lucide-react";
 import studentsService from "../../services/api/students.service";
+import AuthService from "../../services/api/auth.service";
+import { onlinePaymentService } from "../../services/api/online-payment.service";
 import { useState } from "react";
 
 // Helper function to get academic year in Arabic
@@ -105,6 +109,68 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
   };
 
 
+  const handleResetPassword = async () => {
+    const userId = student.user?.id || student.userId;
+    if (!userId) {
+      alert("❌ خطأ\n\nلم يتم العثور على معرف المستخدم");
+      return;
+    }
+
+    const confirmMessage = `
+🔑 إعادة تعيين كلمة المرور
+
+هل أنت متأكد من إعادة تعيين كلمة المرور لهذا الطالب؟
+
+الطالب: ${student.firstName} ${student.lastName}
+الهاتف: ${student.phone}
+
+سيتم تعيين كلمة المرور إلى: 00000000
+    `;
+
+    if (confirm(confirmMessage)) {
+      try {
+        await AuthService.resetPassword(userId, "00000000");
+        alert(`✅ تم بنجاح\n\nتم إعادة تعيين كلمة المرور إلى 00000000`);
+      } catch (error) {
+        console.error("Error resetting password:", error);
+        const errorMessage =
+          error.response?.data?.message || "فشل في إعادة تعيين كلمة المرور";
+        alert(`❌ خطأ\n\n${errorMessage}`);
+      }
+    }
+  };
+
+  const handleEnableMonthlyPayment = async () => {
+    if (!student.id) {
+      alert("❌ خطأ\n\nلم يتم العثور على معرف الطالب");
+      return;
+    }
+
+    const confirmMessage = `
+💳 تفعيل الاشتراك الشهري
+
+هل أنت متأكد من تفعيل الاشتراك الشهري لهذا الطالب؟
+
+الطالب: ${student.firstName} ${student.lastName}
+الهاتف: ${student.phone}
+
+سيتم تفعيل الاشتراك الشهري لمدة 30 يوماً
+    `;
+
+    if (confirm(confirmMessage)) {
+      try {
+        await onlinePaymentService.enableMonthlyPayment(student.id);
+        alert(`✅ تم بنجاح\n\nتم تفعيل الاشتراك الشهري بنجاح`);
+        onUpdate && onUpdate();
+      } catch (error) {
+        console.error("Error enabling monthly payment:", error);
+        const errorMessage =
+          error.response?.data?.error || error.response?.data?.message || "فشل في تفعيل الاشتراك الشهري";
+        alert(`❌ خطأ\n\n${errorMessage}`);
+      }
+    }
+  };
+
   const handleDeleteStudent = async () => {
     // Confirmation avec détails
     const confirmMessage = `
@@ -173,6 +239,24 @@ export function StudentDetailsModal({ student, open, onOpenChange, onUpdate }) {
         <div className="grid gap-6">
           {/* الإجراءات */}
           <div className="flex gap-2 justify-start">
+            <Button
+              onClick={handleResetPassword}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <KeyRound className="h-4 w-4" />
+              إعادة تعيين كلمة المرور
+            </Button>
+            <Button
+              onClick={handleEnableMonthlyPayment}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 border-green-500 text-green-600 hover:bg-green-50"
+            >
+              <CreditCard className="h-4 w-4" />
+              تفعيل الاشتراك الشهري
+            </Button>
             <Button
               onClick={handleDeleteStudent}
               variant="destructive"

@@ -33,6 +33,7 @@ import {
   FileText,
 } from "lucide-react";
 import { sessionService } from "@/services/api/session.service";
+import { attendanceService } from "@/services/api/attendance.service";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -195,6 +196,34 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
       selectedInstances.has(instance.id)
     );
 
+    // Fetch attendances for each selected instance to get free attendance details
+    const freeAttendancesByInstance = {};
+    try {
+      await Promise.all(
+        selectedData.map(async (instance) => {
+          try {
+            const response = await attendanceService.getAttendances(instance.id);
+            // Response format: { success: true, data: [...] }
+            // Backend now only returns free attendances, so no need to filter
+            const freeAttendances = response?.data || [];
+            if (freeAttendances.length > 0) {
+              freeAttendancesByInstance[instance.id] = freeAttendances.map(
+                (att) => ({
+                  name: `${att.student?.firstName || ""} ${att.student?.lastName || ""}`.trim() || "غير معروف",
+                })
+              );
+            }
+          } catch (err) {
+            console.error(`Error fetching attendances for instance ${instance.id}:`, err);
+            // Continue even if one fails
+          }
+        })
+      );
+    } catch (err) {
+      console.error("Error fetching attendances:", err);
+      // Continue with PDF generation even if fetching attendances fails
+    }
+
     // Calculate totals
     const totalAttendance = selectedData.reduce(
       (sum, it) => sum + (it._count?.attendances ?? it.attendance_count ?? 0),
@@ -228,12 +257,18 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
     tempContainer.style.direction = "rtl";
     tempContainer.style.textAlign = "right";
 
+    // Get teacher name
+    const teacherName = session.teacher?.firstName && session.teacher?.lastName
+      ? `${session.teacher.firstName} ${session.teacher.lastName}`
+      : session.teacher_name || "غير محدد";
+
     // Create header
     const header = document.createElement("div");
     header.style.marginBottom = "20px";
     header.innerHTML = `
       <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">تقرير الجلسات</h1>
       <p style="font-size: 14px; margin-bottom: 5px;">الجلسة: ${session.module || session.title || "غير محدد"}</p>
+      <p style="font-size: 14px; margin-bottom: 5px;">الأستاذ: ${teacherName}</p>
       <p style="font-size: 12px;">تاريخ التقرير: ${new Date().toLocaleDateString("ar-DZ")}</p>
     `;
     tempContainer.appendChild(header);
@@ -301,6 +336,64 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
 
     table.appendChild(tbody);
     tempContainer.appendChild(table);
+
+    // Add free attendances section if there are any
+    const hasFreeAttendances = Object.keys(freeAttendancesByInstance).length > 0;
+    if (hasFreeAttendances) {
+      const freeAttendancesSection = document.createElement("div");
+      freeAttendancesSection.style.marginTop = "30px";
+      freeAttendancesSection.style.pageBreakBefore = "always";
+
+      const sectionTitle = document.createElement("h2");
+      sectionTitle.style.fontSize = "20px";
+      sectionTitle.style.fontWeight = "bold";
+      sectionTitle.style.marginBottom = "15px";
+      sectionTitle.style.borderBottom = "2px solid #ddd";
+      sectionTitle.style.paddingBottom = "10px";
+      sectionTitle.textContent = "قائمة الحضور المجاني";
+      freeAttendancesSection.appendChild(sectionTitle);
+
+      // Create a list for each instance
+      selectedData.forEach((instance) => {
+        const freeAttendances = freeAttendancesByInstance[instance.id];
+        if (!freeAttendances || freeAttendances.length === 0) return;
+
+        const instanceDiv = document.createElement("div");
+        instanceDiv.style.marginBottom = "20px";
+        instanceDiv.style.padding = "15px";
+        instanceDiv.style.border = "1px solid #ddd";
+        instanceDiv.style.borderRadius = "5px";
+        instanceDiv.style.backgroundColor = "#f9fafb";
+
+        const instanceHeader = document.createElement("div");
+        instanceHeader.style.fontSize = "16px";
+        instanceHeader.style.fontWeight = "bold";
+        instanceHeader.style.marginBottom = "10px";
+        instanceHeader.style.color = "#374151";
+        const dateVal = instance.dateTime || instance.date;
+        instanceHeader.textContent = `${formatDate(dateVal)} - ${formatTime(dateVal)}`;
+        instanceDiv.appendChild(instanceHeader);
+
+        const studentsList = document.createElement("ul");
+        studentsList.style.listStyle = "none";
+        studentsList.style.padding = "0";
+        studentsList.style.margin = "0";
+
+        freeAttendances.forEach((attendance) => {
+          const listItem = document.createElement("li");
+          listItem.style.padding = "8px";
+          listItem.style.borderBottom = "1px solid #e5e7eb";
+          listItem.style.fontSize = "14px";
+          listItem.textContent = `• ${attendance.name}`;
+          studentsList.appendChild(listItem);
+        });
+
+        instanceDiv.appendChild(studentsList);
+        freeAttendancesSection.appendChild(instanceDiv);
+      });
+
+      tempContainer.appendChild(freeAttendancesSection);
+    }
 
     // Append to body temporarily
     document.body.appendChild(tempContainer);
@@ -586,7 +679,8 @@ export function SessionInstancesDialog({ session, open, onOpenChange }) {
                                   try {
                                     const res = await fetch(`/api/v1/session-instances/${instance.id}/pay`, { method: 'POST', credentials: 'include' });
                                     if (!res.ok) throw new Error('Failed to mark paid');
-                                    await loadSessionInstances();
+                                    // Reload instances with initial load flag to replace instead of append
+                                    await loadSessionInstances(1, true);
                                   } catch (e) {
                                     console.error(e);
                                     alert('تعذر وضع الحالة كمدفوعة');

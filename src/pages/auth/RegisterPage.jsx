@@ -46,6 +46,32 @@ const RegisterPage = () => {
   const dispatch = useDispatch();
   const { toast } = useToast();
 
+  // Load saved form data from localStorage on mount
+  useEffect(() => {
+    const savedFormData = localStorage.getItem('registerFormData');
+    if (savedFormData) {
+      try {
+        const parsed = JSON.parse(savedFormData);
+        setFormData(parsed);
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
+      }
+    }
+  }, []);
+
+  // Save form data to localStorage whenever it changes
+  useEffect(() => {
+    // Only save if there's at least some data entered
+    const hasData = formData.firstname || formData.firstName || 
+                   formData.lastname || formData.lastName || 
+                   formData.phone || formData.address || 
+                   formData.school_name || formData.birth_date;
+    
+    if (hasData) {
+      localStorage.setItem('registerFormData', JSON.stringify(formData));
+    }
+  }, [formData]);
+
   // Mapping between UI values and DB enums
   const yearToGradeMapping = {
     // Middle School
@@ -74,6 +100,7 @@ const RegisterPage = () => {
       { value: "INDUSTRIAL", label: "تقني رياضي - صناعة" },
       { value: "MATHEMATIC", label: "رياضيات" },
       { value: "GESTION", label: "تسيير واقتصاد" },
+      { value: "EXPERIMENTAL_SCIENCES", label: "علوم تجريبية" },
     ],
     GRADE_3: [
       { value: "LANGUAGES", label: "لغات أجنبية" },
@@ -84,6 +111,7 @@ const RegisterPage = () => {
       { value: "INDUSTRIAL", label: "تقني رياضي - صناعة" },
       { value: "MATHEMATIC", label: "رياضيات" },
       { value: "GESTION", label: "تسيير واقتصاد" },
+      { value: "EXPERIMENTAL_SCIENCES", label: "علوم تجريبية" },
     ],
   };
 
@@ -183,6 +211,9 @@ const RegisterPage = () => {
       const { user } = response;
 
       if (user) {
+        // Clear saved form data from localStorage after successful registration
+        localStorage.removeItem('registerFormData');
+
         // Update Redux store (token is in httpOnly cookie)
         dispatch(loginSuccess({ user }));
 
@@ -386,17 +417,36 @@ const RegisterPage = () => {
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button type="button" variant="outline" className={`w-full justify-between pr-10 pl-3 py-2 h-9 text-sm ${errors.birth_date ? "border-red-500" : ""}`}>
-                        {formData.birth_date ? new Date(formData.birth_date).toLocaleDateString("ar-DZ") : "اختر تاريخ الميلاد"}
+                        {formData.birth_date ? (() => {
+                          try {
+                            const date = new Date(formData.birth_date + 'T00:00:00');
+                            if (isNaN(date.getTime())) return formData.birth_date;
+                            const year = date.getFullYear();
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const day = String(date.getDate()).padStart(2, '0');
+                            return `${year}/${month}/${day}`;
+                          } catch {
+                            return formData.birth_date;
+                          }
+                        })() : "اختر تاريخ الميلاد"}
                         <User className="h-4 w-4 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent align="end" className="p-2 w-80 max-w-[90vw]">
                       <Calendar
                         mode="single"
-                        selected={formData.birth_date ? new Date(formData.birth_date) : undefined}
+                        selected={formData.birth_date ? new Date(formData.birth_date + 'T00:00:00') : undefined}
                         onSelect={(date) => {
-                          const iso = date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split("T")[0] : "";
-                          handleChange({ target: { name: "birth_date", value: iso } });
+                          if (date) {
+                            // Format as YYYY-MM-DD without timezone issues
+                            const year = date.getFullYear();
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const day = String(date.getDate()).padStart(2, '0');
+                            const iso = `${year}-${month}-${day}`;
+                            handleChange({ target: { name: "birth_date", value: iso } });
+                          } else {
+                            handleChange({ target: { name: "birth_date", value: "" } });
+                          }
                         }}
                         captionLayout="dropdown"
                       />

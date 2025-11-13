@@ -60,6 +60,7 @@ export function EditTeacherModal({
     { value: "INDUSTRIAL", label: "صناعي" },
     { value: "MATHEMATIC", label: "رياضيات" },
     { value: "GESTION", label: "تسيير" },
+    { value: "EXPERIMENTAL_SCIENCES", label: "علوم تجريبية" },
   ];
 
   const MODULE_OPTIONS = [
@@ -204,57 +205,6 @@ export function EditTeacherModal({
                       onCheckedChange={() => toggleArrayField('specialization', m.value)}
                     />
                     <span>{m.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>المراحل المتوسطة</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {MIDDLE_SCHOOL_GRADES.map((grade) => (
-                  <label
-                    key={grade.value}
-                    className="flex items-center gap-2 text-sm bg-gray-50 rounded px-2 py-1 border"
-                  >
-                    <Checkbox
-                      checked={formData.middleSchoolGrades.includes(grade.value)}
-                      onCheckedChange={() => toggleArrayField('middleSchoolGrades', grade.value)}
-                    />
-                    <span>{grade.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>المراحل الثانوية</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {HIGH_SCHOOL_GRADES.map((grade) => (
-                  <label
-                    key={grade.value}
-                    className="flex items-center gap-2 text-sm bg-gray-50 rounded px-2 py-1 border"
-                  >
-                    <Checkbox
-                      checked={formData.highSchoolGrades.includes(grade.value)}
-                      onCheckedChange={() => toggleArrayField('highSchoolGrades', grade.value)}
-                    />
-                    <span>{grade.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>الفروع الدراسية</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {BRANCH_OPTIONS.map((branch) => (
-                  <label
-                    key={branch.value}
-                    className="flex items-center gap-2 text-sm bg-gray-50 rounded px-2 py-1 border"
-                  >
-                    <Checkbox
-                      checked={formData.branches.includes(branch.value)}
-                      onCheckedChange={() => toggleArrayField('branches', branch.value)}
-                    />
-                    <span>{branch.label}</span>
                   </label>
                 ))}
               </div>

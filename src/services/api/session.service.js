@@ -1,5 +1,4 @@
 import api from "./axios.config";
-import cacheService from "../cache.service";
 
 const SESSION_ENDPOINTS = {
   SESSIONS: "/sessions",
@@ -10,37 +9,35 @@ const SESSION_ENDPOINTS = {
 export const sessionService = {
   /**
    * Get all sessions with optional filters
-   * Uses localStorage cache - returns cached data if available, otherwise fetches from API
+   * Fetches directly from API without localStorage cache
    */
   async getSessions(filters = {}) {
-    // Use cache service to check localStorage first
-    return cacheService.getSessions(async () => {
-      try {
-        const params = {};
+    try {
+      const params = {};
 
-        if (filters.teacherId) params.teacherId = filters.teacherId;
-        if (filters.middleSchoolGrade) params.middleSchoolGrade = filters.middleSchoolGrade;
-        if (filters.highSchoolGrade) params.highSchoolGrade = filters.highSchoolGrade;
-        if (filters.branch) params.branch = filters.branch;
-        if (filters.status && filters.status !== "null") params.status = filters.status;
-        if (filters.sessionType) params.sessionType = filters.sessionType;
-        if (filters.search) params.search = filters.search;
-        if (filters.page) params.page = filters.page;
-        if (filters.limit) params.limit = filters.limit;
+      if (filters.teacherId) params.teacherId = filters.teacherId;
+      if (filters.middleSchoolGrade) params.middleSchoolGrade = filters.middleSchoolGrade;
+      if (filters.highSchoolGrade) params.highSchoolGrade = filters.highSchoolGrade;
+      if (filters.branch) params.branch = filters.branch;
+      if (filters.status && filters.status !== "null") params.status = filters.status;
+      if (filters.sessionType) params.sessionType = filters.sessionType;
+      if (filters.search) params.search = filters.search;
+      if (filters.page) params.page = filters.page;
+      // Default limit to 10 if not specified
+      params.limit = filters.limit || 10;
 
-        const response = await api.get(SESSION_ENDPOINTS.SESSIONS, { params });
-        
-        // Express backend returns { success: true, data: [...], pagination: {...} }
-        return {
-          data: response.data.data || [],
-          pagination: response.data.pagination || { page: 1, limit: 10, total: 0 },
-        };
-      } catch (error) {
-        console.error("Error fetching sessions:", error);
-        // Return empty data if endpoint doesn't exist yet
-        return { data: [], pagination: { page: 1, limit: 10, total: 0 } };
-      }
-    }, filters);
+      const response = await api.get(SESSION_ENDPOINTS.SESSIONS, { params });
+      
+      // Express backend returns { success: true, data: [...], pagination: {...} }
+      return {
+        data: response.data.data || [],
+        pagination: response.data.pagination || { page: 1, limit: 10, total: 0 },
+      };
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+      // Return empty data if endpoint doesn't exist yet
+      return { data: [], pagination: { page: 1, limit: 10, total: 0 } };
+    }
   },
 
   /**
@@ -92,15 +89,11 @@ export const sessionService = {
 
   /**
    * Create a new session
-   * Invalidates sessions cache after successful creation
    */
   async createSession(sessionData) {
     try {
       const response = await api.post(SESSION_ENDPOINTS.SESSIONS, sessionData);
       // Express backend returns { success: true, data: {...} }
-      
-      // Invalidate cache so next getSessions() call will fetch fresh data
-      cacheService.invalidateSessions();
       
       return response.data;
     } catch (error) {
@@ -111,7 +104,6 @@ export const sessionService = {
 
   /**
    * Update a session
-   * Invalidates sessions cache after successful update
    */
   async updateSession(sessionId, sessionData) {
     try {
@@ -120,9 +112,6 @@ export const sessionService = {
         sessionData,
       );
       // Express backend returns { success: true, data: {...} }
-      
-      // Invalidate cache so next getSessions() call will fetch fresh data
-      cacheService.invalidateSessions();
       
       return response.data;
     } catch (error) {
@@ -133,7 +122,6 @@ export const sessionService = {
 
   /**
    * Delete a session
-   * Invalidates sessions cache after successful deletion
    */
   async deleteSession(sessionId) {
     try {
@@ -141,9 +129,6 @@ export const sessionService = {
         `${SESSION_ENDPOINTS.SESSIONS}/${sessionId}`,
       );
       // Express backend returns { success: true, message: "..." }
-      
-      // Invalidate cache so next getSessions() call will fetch fresh data
-      cacheService.invalidateSessions();
       
       return response.data;
     } catch (error) {
@@ -220,15 +205,20 @@ export const sessionService = {
       }
     }
     
-    // Handle branch from branch_ids array - take first one
+    // Handle branches from branch_ids array - convert to branches array
     if (formData.branch_ids && formData.branch_ids.length > 0) {
-      // branch_ids now contains the enum values directly
-      data.branch = formData.branch_ids[0];
+      // branch_ids contains the enum values directly, convert to branches array
+      data.branches = formData.branch_ids;
     }
     
-    // Handle branch (new format)
-    if (formData.branch) {
-      data.branch = formData.branch;
+    // Handle branch (backward compatibility - convert single branch to array)
+    if (formData.branch && !data.branches) {
+      data.branches = [formData.branch];
+    }
+    
+    // Ensure branches is an array or empty array
+    if (!data.branches) {
+      data.branches = [];
     }
 
     // Handle status

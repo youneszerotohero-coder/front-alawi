@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,10 +13,9 @@ import {
 } from "lucide-react";
 import { teachersService } from "@/services/teachersService";
 import { useDebounce } from "@/hooks/useDebounce";
-import { cacheService } from "@/services/cache.service"; // ⚡ Cache
 import { invalidateDashboardCache } from "@/hooks/useDashboardData"; // ⚡ Dashboard cache
 
-export function TeachersTable({ searchQuery = "" }) {
+export function TeachersTable({ searchQuery = "", onAddTeacherRef } = {}) {
   const [teachers, setTeachers] = useState([]);
   const [meta, setMeta] = useState({
     current_page: 1,
@@ -66,6 +65,36 @@ export function TeachersTable({ searchQuery = "" }) {
       sessionStorage.removeItem(CACHE_KEY);
     }
   }, []);
+
+  // Function to add a new teacher to the state
+  const addTeacherToState = useCallback((newTeacher) => {
+    // Only add if we're on page 1, no search query, and there's space (less than 12 teachers)
+    if (page === 1 && !debouncedSearch && teachers.length < 12) {
+      // Add the new teacher at the beginning of the list (most recent first)
+      setTeachers(prev => [newTeacher, ...prev]);
+      // Update total count
+      setMeta(prev => ({
+        ...prev,
+        total: prev.total + 1,
+        last_page: Math.ceil((prev.total + 1) / prev.per_page),
+      }));
+    } else {
+      // If we're not on page 1 or have a search, just update the total count
+      // The user can navigate to see the new teacher
+      setMeta(prev => ({
+        ...prev,
+        total: prev.total + 1,
+        last_page: Math.ceil((prev.total + 1) / prev.per_page),
+      }));
+    }
+  }, [page, debouncedSearch, teachers.length]);
+
+  // Expose the addTeacherToState function to parent via ref callback
+  useEffect(() => {
+    if (onAddTeacherRef) {
+      onAddTeacherRef(addTeacherToState);
+    }
+  }, [onAddTeacherRef, addTeacherToState]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -142,10 +171,9 @@ export function TeachersTable({ searchQuery = "" }) {
     try {
       await teachersService.deleteTeacher(id);
       
-      // ⚡ Invalidate cache after teacher deletion
-      cacheService.invalidateTeachers();
+      // Refresh dashboard cache
       invalidateDashboardCache();
-      console.log("🔄 Teacher deleted - Cache invalidated");
+      console.log("🔄 Teacher deleted");
       
       await loadTeachers();
     } catch {

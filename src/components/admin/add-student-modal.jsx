@@ -22,7 +22,6 @@ import { UserPlus } from "lucide-react";
 import studentsService from "../../services/api/students.service";
 import authService from "../../services/api/auth.service";
 import { useToast } from "../../hooks/use-toast";
-import { cacheService } from "@/services/cache.service";
 import { invalidateDashboardCache } from "@/hooks/useDashboardData"; // ⚡ Invalidate dashboard
 
 export function AddStudentModal({ onStudentAdded }) {
@@ -64,7 +63,8 @@ export function AddStudentModal({ onStudentAdded }) {
             { value: "CIVIL", label: "مدني" },
             { value: "INDUSTRIAL", label: "صناعي" },
             { value: "MATHEMATIC", label: "رياضيات" },
-            { value: "GESTION", label: "تسيير" }
+            { value: "GESTION", label: "تسيير" },
+            { value: "EXPERIMENTAL_SCIENCES", label: "علوم تجريبية" }
           ],
           "GRADE_3_HIGH": [
             { value: "LANGUAGES", label: "آداب ولغات" },
@@ -74,7 +74,8 @@ export function AddStudentModal({ onStudentAdded }) {
             { value: "CIVIL", label: "مدني" },
             { value: "INDUSTRIAL", label: "صناعي" },
             { value: "MATHEMATIC", label: "رياضيات" },
-            { value: "GESTION", label: "تسيير" }
+            { value: "GESTION", label: "تسيير" },
+            { value: "EXPERIMENTAL_SCIENCES", label: "علوم تجريبية" }
           ]
         };
 
@@ -120,6 +121,9 @@ export function AddStudentModal({ onStudentAdded }) {
             branch = formData.branch;
           }
 
+          // Save current admin user before registration to prevent logout
+          const currentUser = authService.getCurrentUser();
+          
           let userId;
           
           try {
@@ -137,7 +141,17 @@ export function AddStudentModal({ onStudentAdded }) {
               branch: branch,
             });
             userId = userResponse.user.id;
+            
+            // Restore admin user session after registration
+            if (currentUser) {
+              localStorage.setItem("user", JSON.stringify(currentUser));
+            }
           } catch (error) {
+            // Restore admin user session even if registration fails
+            if (currentUser) {
+              localStorage.setItem("user", JSON.stringify(currentUser));
+            }
+            
             // If user already exists (409), we need to check if they have a student record
             if (error.response?.status === 409) {
               // For now, show a clear error message asking to use a different phone number
@@ -150,10 +164,71 @@ export function AddStudentModal({ onStudentAdded }) {
           // The student record should already be created by the auth controller
           console.log('User and student created successfully with ID:', userId);
 
-          // ⚡ Invalidate cache after creating student
-          cacheService.invalidateStudents();
+          // Fetch the created student data to add to state
+          let createdStudent = null;
+          try {
+            // The registration response contains student data in userResponse.user
+            // But we need the actual student record. Let's fetch it by searching for the phone
+            const studentResponse = await studentsService.getStudents({ 
+              search: formData.phone,
+              limit: 1 
+            });
+            
+            if (studentResponse.data && studentResponse.data.length > 0) {
+              // Found the student, use it
+              createdStudent = studentResponse.data[0];
+            } else {
+              // If search doesn't work immediately (might be a timing issue), 
+              // construct from registration response
+              // The backend returns student data in the response
+              const studentData = userResponse.user;
+              createdStudent = {
+                id: studentData.id || studentData.userId || userId,
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                phone: formData.phone,
+                birthDate: formData.birth_date || studentData.birthDate || null,
+                address: formData.address || studentData.address || null,
+                schoolName: formData.school_name || studentData.schoolName || null,
+                middleSchoolGrade: middleSchoolGrade || studentData.middleSchoolGrade || null,
+                highSchoolGrade: highSchoolGrade || studentData.highSchoolGrade || null,
+                branch: branch || studentData.branch || null,
+                hasFreeSubscription: studentData.hasFreeSubscription || false,
+                user: {
+                  id: userId,
+                  phone: formData.phone,
+                  role: "STUDENT",
+                },
+                createdAt: studentData.createdAt || new Date().toISOString(),
+              };
+            }
+          } catch (fetchError) {
+            console.warn("Could not fetch created student, will use registration data:", fetchError);
+            // Construct student object from registration data
+            const studentData = userResponse.user;
+            createdStudent = {
+              id: studentData.id || studentData.userId || userId,
+              firstName: formData.firstName,
+              lastName: formData.lastName,
+              phone: formData.phone,
+              birthDate: formData.birth_date || studentData.birthDate || null,
+              address: formData.address || studentData.address || null,
+              schoolName: formData.school_name || studentData.schoolName || null,
+              middleSchoolGrade: middleSchoolGrade || studentData.middleSchoolGrade || null,
+              highSchoolGrade: highSchoolGrade || studentData.highSchoolGrade || null,
+              branch: branch || studentData.branch || null,
+              hasFreeSubscription: studentData.hasFreeSubscription || false,
+              user: {
+                id: userId,
+                phone: formData.phone,
+                role: "STUDENT",
+              },
+              createdAt: studentData.createdAt || new Date().toISOString(),
+            };
+          }
+
           invalidateDashboardCache();
-          console.log("🔄 Student created - Cache invalidated");
+          console.log("🔄 Student created - Adding to state");
 
       // Show success message
       toast({
@@ -176,9 +251,9 @@ export function AddStudentModal({ onStudentAdded }) {
 
       setOpen(false);
 
-      // Refresh parent component
-      if (onStudentAdded) {
-        onStudentAdded();
+      // Pass the created student to the callback instead of triggering a refresh
+      if (onStudentAdded && createdStudent) {
+        onStudentAdded(createdStudent);
       }
     } catch (error) {
       console.error("Error adding student:", error);

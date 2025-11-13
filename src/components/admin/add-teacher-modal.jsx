@@ -22,7 +22,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { UserPlus } from "lucide-react";
 import { teachersService } from "@/services/teachersService";
 import { useToast } from "../../hooks/use-toast";
-import { cacheService } from "@/services/cache.service"; // ⚡ Cache
 import { invalidateDashboardCache } from "@/hooks/useDashboardData"; // ⚡ Dashboard cache
 
 export function AddTeacherModal({ onTeacherCreated }) {
@@ -128,12 +127,19 @@ export function AddTeacherModal({ onTeacherCreated }) {
         percentageShare: formData.percentageShare,
         isPublisher: formData.isPublisher,
       };
-      await teachersService.createTeacher(payload);
+      const response = await teachersService.createTeacher(payload);
+      
+      // Get the created teacher from the response
+      const createdTeacher = response.data || response;
+      
+      // Add studentsCount property to match the table format
+      const teacherWithCount = {
+        ...createdTeacher,
+        studentsCount: 0,
+      };
 
-      // ⚡ Invalidate cache after teacher creation
-      cacheService.invalidateTeachers();
       invalidateDashboardCache();
-      console.log("🔄 Teacher created - Cache invalidated");
+      console.log("🔄 Teacher created - Adding to state");
 
       // Show success message
       toast({
@@ -143,7 +149,11 @@ export function AddTeacherModal({ onTeacherCreated }) {
 
       resetForm();
       setOpen(false);
-      if (onTeacherCreated) onTeacherCreated();
+      
+      // Pass the created teacher to the callback instead of triggering a refresh
+      if (onTeacherCreated && teacherWithCount) {
+        onTeacherCreated(teacherWithCount);
+      }
     } catch (err) {
       const msg = err?.response?.data?.message || "حدث خطأ أثناء إنشاء الأستاذ";
       setError(msg);
@@ -172,7 +182,7 @@ export function AddTeacherModal({ onTeacherCreated }) {
         <DialogHeader>
           <DialogTitle>إضافة أستاذ جديد</DialogTitle>
           <DialogDescription>
-            إدخال معلومات الأستاذ الجديد مع التخصصات والمراحل والفروع الدراسية.
+            إدخال معلومات الأستاذ الجديد مع التخصصات.
           </DialogDescription>
         </DialogHeader>
         {error && <div className="text-red-600 text-sm mb-3">{error}</div>}
@@ -234,58 +244,7 @@ export function AddTeacherModal({ onTeacherCreated }) {
               </div>
             </div>
             <div className="grid gap-2">
-              <Label>المراحل المتوسطة</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {MIDDLE_SCHOOL_GRADES.map((grade) => (
-                  <label
-                    key={grade.value}
-                    className="flex items-center gap-2 text-sm bg-gray-50 rounded px-2 py-1 border"
-                  >
-                    <Checkbox
-                      checked={formData.middleSchoolGrades.includes(grade.value)}
-                      onCheckedChange={() => toggleArrayField('middleSchoolGrades', grade.value)}
-                    />
-                    <span>{grade.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>المراحل الثانوية</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {HIGH_SCHOOL_GRADES.map((grade) => (
-                  <label
-                    key={grade.value}
-                    className="flex items-center gap-2 text-sm bg-gray-50 rounded px-2 py-1 border"
-                  >
-                    <Checkbox
-                      checked={formData.highSchoolGrades.includes(grade.value)}
-                      onCheckedChange={() => toggleArrayField('highSchoolGrades', grade.value)}
-                    />
-                    <span>{grade.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>الفروع الدراسية</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {BRANCH_OPTIONS.map((branch) => (
-                  <label
-                    key={branch.value}
-                    className="flex items-center gap-2 text-sm bg-gray-50 rounded px-2 py-1 border"
-                  >
-                    <Checkbox
-                      checked={formData.branches.includes(branch.value)}
-                      onCheckedChange={() => toggleArrayField('branches', branch.value)}
-                    />
-                    <span>{branch.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="percentageShare">نسبة المدرسة (%)</Label>
+              <Label htmlFor="percentageShare">نسبة الاستاذ (%)</Label>
               <Input
                 id="percentageShare"
                 type="number"

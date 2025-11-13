@@ -164,6 +164,7 @@ export default function StudentSettingsPage() {
       { value: "INDUSTRIAL", label: "صناعي" },
       { value: "MATHEMATIC", label: "رياضيات" },
       { value: "GESTION", label: "تسيير" },
+      { value: "EXPERIMENTAL_SCIENCES", label: "علوم تجريبية" },
     ],
     "3AS": [
       { value: "LANGUAGES", label: "آداب ولغات" },
@@ -174,6 +175,7 @@ export default function StudentSettingsPage() {
       { value: "INDUSTRIAL", label: "صناعي" },
       { value: "MATHEMATIC", label: "رياضيات" },
       { value: "GESTION", label: "تسيير" },
+      { value: "EXPERIMENTAL_SCIENCES", label: "علوم تجريبية" },
     ],
   };
 

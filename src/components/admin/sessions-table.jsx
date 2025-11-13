@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,10 +46,9 @@ import {
 import { sessionService } from "@/services/api/session.service";
 import { useToast } from "@/hooks/use-toast";
 import { EditSessionModal } from "./edit-session-modal";
-import { cacheService } from "@/services/cache.service"; // ⚡ Cache optimization
 import { invalidateDashboardCache } from "@/hooks/useDashboardData"; // ⚡ Invalidate dashboard
 
-export function SessionsTable({ filters = {}, searchQuery = "" }) {
+export function SessionsTable({ filters = {}, searchQuery = "", onAddSessionRef } = {}) {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -57,9 +56,10 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
   const [pagination, setPagination] = useState({
     current_page: 1,
     last_page: 1,
-    per_page: 20,
+    per_page: 10,
     total: 0,
   });
+  const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogAction, setStatusDialogAction] = useState(null);
@@ -80,6 +80,47 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
     totalPages: 1,
   });
 
+  // Function to add a new session to the state
+  const addSessionToState = useCallback((newSession) => {
+    // Only add if we're on page 1, no search query, no active filters (excluding default date filters), and there's space (less than 10 sessions)
+    // Check for active filters (not just default date filters)
+    const hasActiveFilters = filters.teacherId || filters.status || filters.sessionType || 
+                             filters.branch || filters.middleSchoolGrade || filters.highSchoolGrade ||
+                             (filters.search && filters.search.trim());
+    const shouldAdd = currentPage === 1 && !searchQuery && !hasActiveFilters && sessions.length < 10;
+    
+    if (shouldAdd) {
+      // Add the new session at the beginning of the list (most recent first)
+      setSessions(prev => [newSession, ...prev]);
+      // Update total count
+      setTotalCount(prev => prev + 1);
+      // Recalculate total pages
+      const newTotal = totalCount + 1;
+      setPagination(prev => ({
+        ...prev,
+        total: newTotal,
+        last_page: Math.ceil(newTotal / 10),
+      }));
+    } else {
+      // If we're not on page 1 or have filters/search, just update the total count
+      // The user can navigate to see the new session
+      setTotalCount(prev => prev + 1);
+      const newTotal = totalCount + 1;
+      setPagination(prev => ({
+        ...prev,
+        total: newTotal,
+        last_page: Math.ceil(newTotal / 10),
+      }));
+    }
+  }, [currentPage, searchQuery, filters, sessions.length, totalCount]);
+
+  // Expose the addSessionToState function to parent via ref callback
+  useEffect(() => {
+    if (onAddSessionRef) {
+      onAddSessionRef(addSessionToState);
+    }
+  }, [onAddSessionRef, addSessionToState]);
+
   // Fetch sessions when component mounts or filters change
   useEffect(() => {
     fetchSessions();
@@ -92,11 +133,12 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
 
       console.log("📡 Fetching sessions with filters:", filters);
       
-      // Cache is now handled inside sessionService.getSessions
+      // Fetch directly from API without localStorage cache
       const response = await sessionService.getSessions({
         ...filters,
         search: searchQuery,
         page: currentPage,
+        limit: 10, // 10 sessions per page
       });
 
       console.log("📥 Sessions response:", response);
@@ -105,6 +147,7 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
         setSessions(response.data);
         if (response.pagination) {
           setPagination(response.pagination);
+          setTotalCount(response.pagination.total || 0);
         }
       } else {
         setSessions([]);
@@ -138,10 +181,9 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
     try {
       await sessionService.updateSession(sessionId, { status: newStatus });
       
-      // ⚡ Invalidate cache after status update
-      cacheService.invalidateSessions();
+      // Refresh dashboard cache
       invalidateDashboardCache();
-      console.log("🔄 Session status updated - Cache invalidated");
+      console.log("🔄 Session status updated");
       
       toast({
         title: "تم تحديث الحالة",
@@ -240,10 +282,9 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
           "completed",
         );
         
-        // ⚡ Invalidate cache after status update
-        cacheService.invalidateSessions();
+        // Refresh dashboard cache
         invalidateDashboardCache();
-        console.log("🔄 Session completed - Cache invalidated");
+        console.log("🔄 Session completed");
         
         toast({
           title: "تم تأكيد الجلسة",
@@ -258,10 +299,9 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
           },
         );
         
-        // ⚡ Invalidate cache after cancellation
-        cacheService.invalidateSessions();
+        // Refresh dashboard cache
         invalidateDashboardCache();
-        console.log("🔄 Session cancelled - Cache invalidated");
+        console.log("🔄 Session cancelled");
         
         toast({
           title: "تم إلغاء الجلسة",
@@ -443,7 +483,43 @@ export function SessionsTable({ filters = {}, searchQuery = "" }) {
                         : getYearTargetInArabic(session.year_target)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {session.branch || "غير محدد"}
+                    {(() => {
+                      if (session.branches && Array.isArray(session.branches) && session.branches.length > 0) {
+                        return session.branches.map(b => {
+                          const branchMap = {
+                            "SCIENTIFIC": "علمي",
+                            "LITERARY": "أدبي",
+                            "LANGUAGES": "آداب ولغات",
+                            "PHILOSOPHY": "فلسفة",
+                            "ELECTRICAL": "كهرباء",
+                            "MECHANICAL": "ميكانيك",
+                            "CIVIL": "مدني",
+                            "INDUSTRIAL": "صناعي",
+                            "MATHEMATIC": "رياضيات",
+                            "GESTION": "تسيير",
+                            "EXPERIMENTAL_SCIENCES": "علوم تجريبية",
+                          };
+                          return branchMap[b] || b;
+                        }).join(", ");
+                      } else if (session.branch) {
+                        // Backward compatibility
+                        const branchMap = {
+                          "SCIENTIFIC": "علمي",
+                          "LITERARY": "أدبي",
+                          "LANGUAGES": "آداب ولغات",
+                          "PHILOSOPHY": "فلسفة",
+                          "ELECTRICAL": "كهرباء",
+                          "MECHANICAL": "ميكانيك",
+                          "CIVIL": "مدني",
+                          "INDUSTRIAL": "صناعي",
+                          "MATHEMATIC": "رياضيات",
+                          "GESTION": "تسيير",
+                          "EXPERIMENTAL_SCIENCES": "علوم تجريبية",
+                        };
+                        return branchMap[session.branch] || session.branch;
+                      }
+                      return "غير محدد";
+                    })()}
                   </TableCell>
                   <TableCell className="text-right">
                     {session.sessionType === "ONE_TIME" 
